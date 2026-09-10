@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bubbles AI</title>
+<link rel="icon" type="image/png" href="/logo.png">
+<meta name="theme-color" content="#8b5cf6">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div id="titlebar" class="pywebview-drag-region hidden">
+  <div id="titlebar-left">
+    <img src="/logo.png" alt="" id="titlebar-logo">
+    <span>Bubbles AI</span>
+  </div>
+  <div id="titlebar-controls">
+    <button id="titlebar-minimize" title="Minimize"><span data-icon="minimize" data-icon-size="sm"></span></button>
+    <button id="titlebar-maximize" title="Maximize"><span data-icon="maximize" data-icon-size="sm"></span></button>
+    <button id="titlebar-close" title="Close"><span data-icon="close" data-icon-size="sm"></span></button>
+  </div>
+</div>
+
+<div id="app">
+
+  <aside id="sidebar">
+    <div id="header">
+      <img src="/logo.png" alt="Bubbles AI" id="logo">
+      <h1>Bubbles AI</h1>
+    </div>
+
+    <nav id="tabs">
+      <button class="tab-btn active" data-tab="chats"><span class="nav-icon" data-icon="chat"></span><span class="nav-label">Chats</span></button>
+      <button class="tab-btn" data-tab="brain"><span class="nav-icon" data-icon="brain"></span><span class="nav-label">AI Brain</span></button>
+      <button class="tab-btn" data-tab="tools"><span class="nav-icon" data-icon="tools"></span><span class="nav-label">Tools</span></button>
+      <button class="tab-btn" data-tab="images"><span class="nav-icon" data-icon="image"></span><span class="nav-label">Images</span></button>
+      <button class="tab-btn" data-tab="code"><span class="nav-icon" data-icon="code"></span><span class="nav-label">Code</span></button>
+      <button class="tab-btn" data-tab="terminal"><span class="nav-icon" data-icon="terminal"></span><span class="nav-label">Terminal</span></button>
+      <button class="tab-btn" data-tab="api"><span class="nav-icon" data-icon="plug"></span><span class="nav-label">API</span></button>
+      <button class="tab-btn" data-tab="settings"><span class="nav-icon" data-icon="settings"></span><span class="nav-label">Settings</span></button>
+    </nav>
+
+    <!-- CHATS TAB -->
+    <div class="tab-panel active" id="tab-chats">
+      <div class="row">
+        <button id="new-chat-btn" class="btn primary"><span data-icon="plus" data-icon-size="sm"></span> New Chat</button>
+        <button id="save-chat-btn" class="btn secondary"><span data-icon="save" data-icon-size="sm"></span> Save</button>
+      </div>
+      <div class="search-wrap">
+        <span data-icon="search" data-icon-size="sm" class="search-icon"></span>
+        <input type="text" id="session-search" class="search-input" placeholder="Search chats…">
+      </div>
+      <p class="muted small-heading">Saved chats</p>
+      <div id="sessions-list"></div>
+      <button id="delete-session-btn" class="btn secondary full"><span data-icon="trash" data-icon-size="sm"></span> Delete selected</button>
+    </div>
+
+    <!-- AI BRAIN TAB -->
+    <div class="tab-panel" id="tab-brain">
+      <label class="field-label">Active provider</label>
+      <select id="provider-select"></select>
+
+      <label class="field-label">Fallback order (comma-separated)</label>
+      <input type="text" id="fallback-order-input">
+
+      <div class="section-heading">Cloud API keys</div>
+      <div class="key-row"><label class="field-label">OpenAI</label>
+        <div class="key-input-wrap"><input type="password" id="key-openai"><button class="eye-btn" data-target="key-openai"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
+      <div class="key-row"><label class="field-label">Anthropic</label>
+        <div class="key-input-wrap"><input type="password" id="key-anthropic"><button class="eye-btn" data-target="key-anthropic"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
+      <div class="key-row"><label class="field-label">DeepSeek</label>
+        <div class="key-input-wrap"><input type="password" id="key-deepseek"><button class="eye-btn" data-target="key-deepseek"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
+      <div class="key-row"><label class="field-label">Kimi</label>
+        <div class="key-input-wrap"><input type="password" id="key-kimi"><button class="eye-btn" data-target="key-kimi"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
+
+      <div class="section-heading">Amazon Bedrock / Nova</div>
+      <div class="key-row"><label class="field-label">AWS Access Key ID</label>
+        <div class="key-input-wrap"><input type="password" id="aws-access-key"><button class="eye-btn" data-target="aws-access-key"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
+      <div class="key-row"><label class="field-label">AWS Secret Access Key</label>
+        <div class="key-input-wrap"><input type="password" id="aws-secret-key"><button class="eye-btn" data-target="aws-secret-key"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
+      <label class="field-label">AWS Region</label>
+      <input type="text" id="aws-region">
+      <label class="field-label">Nova model ID</label>
+      <input type="text" id="nova-model">
+
+      <div class="section-heading">Google AI (Gemini)</div>
+      <div class="key-row"><label class="field-label">Google API key</label>
+        <div class="key-input-wrap"><input type="password" id="key-google"><button class="eye-btn" data-target="key-google"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
+      <label class="field-label">Model</label>
+      <input type="text" id="google-model">
+
+      <div class="section-heading">OmniRoute (local gateway)</div>
+      <label class="field-label">Base URL</label>
+      <input type="text" id="omniroute-url">
+      <div class="key-row"><label class="field-label">API key (optional)</label>
+        <div class="key-input-wrap"><input type="password" id="omniroute-key"><button class="eye-btn" data-target="omniroute-key"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
+      <button id="omniroute-test-btn" class="btn secondary full">Test Connection</button>
+      <div id="omniroute-test-result" class="test-result"></div>
+
+      <div class="section-heading">Ollama (local server)</div>
+      <label class="field-label">Base URL</label>
+      <input type="text" id="ollama-url">
+      <label class="field-label">Model name</label>
+      <input type="text" id="ollama-model">
+      <button id="ollama-test-btn" class="btn secondary full">Test Connection</button>
+      <div id="ollama-test-result" class="test-result"></div>
+
+      <div class="section-heading">Offline model file (.gguf)</div>
+      <p class="muted">Paste the full path to a model you downloaded, e.g. from Hugging Face.</p>
+      <input type="text" id="local-model-path" placeholder="/home/you/models/model.gguf">
+
+      <div class="section-heading">Workspace folder</div>
+      <p class="muted">Files, terminal commands, and git tools all run inside this folder.</p>
+      <input type="text" id="workspace-dir" placeholder="/home/you/projects/my-project">
+
+      <button id="save-brain-btn" class="btn primary full"><span data-icon="save" data-icon-size="sm"></span> Save AI Brain Settings</button>
+
+      <div class="section-heading">Agent mode</div>
+      <select id="agent-mode-select"></select>
+    </div>
+
+    <!-- TOOLS TAB -->
+    <div class="tab-panel" id="tab-tools">
+      <p class="muted">Let the AI use these tools while answering:</p>
+      <div id="tools-list"></div>
+    </div>
+
+    <!-- TERMINAL TAB -->
+    <div class="tab-panel" id="tab-terminal">
+      <p class="muted">Run commands directly in the workspace folder, and watch what the agent itself is doing.</p>
+      <div id="terminal-output"></div>
+      <div class="row">
+        <input type="text" id="terminal-input" placeholder="Type a command…">
+        <button id="terminal-run-btn" class="btn primary">Run</button>
+      </div>
+      <label class="checkbox-row"><input type="checkbox" id="terminal-follow-agent" checked> Show agent activity</label>
+    </div>
+
+    <!-- API TAB -->
+    <div class="tab-panel" id="tab-api">
+      <p class="muted">
+        Bubbles AI runs a local OpenAI-compatible endpoint the whole time it's open,
+        so other tools (VS Code extensions, scripts, curl, etc.) can talk to it.
+      </p>
+      <label class="field-label">Endpoint</label>
+      <input type="text" id="api-endpoint" readonly>
+      <button id="copy-endpoint-btn" class="btn secondary full">Copy endpoint URL</button>
+      <p class="muted small-note">
+        In VS Code, point a custom "OpenAI base URL" setting at the endpoint above
+        (any API key text works).
+      </p>
+    </div>
+
+    <!-- SETTINGS TAB -->
+    <div class="tab-panel" id="tab-settings">
+      <div class="section-heading" style="margin-top:6px;">Appearance</div>
+      <label class="field-label">Accent color</label>
+      <div class="row">
+        <input type="color" id="accent-color-picker" value="#8b5cf6">
+        <button id="accent-reset-btn" class="btn secondary">Reset</button>
+      </div>
+
+      <div class="section-heading">App icon</div>
+      <div class="row" id="icon-preview-row">
+        <img id="icon-preview" src="/logo.png" alt="icon">
+        <label class="btn secondary" for="icon-upload-input">Choose image…</label>
+        <input type="file" id="icon-upload-input" accept="image/*" style="display:none;">
+      </div>
+      <button id="icon-reset-btn" class="btn secondary full">Reset to default logo</button>
+    </div>
+  </aside>
+
+  <main id="main">
+    <div id="view-chat">
+      <div id="chat-toolbar">
+        <span id="status-pill" class="pill"><span class="status-dot"></span>Offline</span>
+      </div>
+      <div id="chat-scroll">
+        <div id="chat-messages">
+          <div class="empty-state"><span data-icon="bubble" data-icon-size="lg"></span> Say hello to start chatting with Bubbles AI</div>
+        </div>
+      </div>
+      <div id="attachments-row"></div>
+      <div id="input-row">
+        <button id="attach-btn" class="btn secondary" title="Attach a file"><span data-icon="paperclip"></span></button>
+        <button id="sync-btn" class="btn secondary" title="Pull in context from another chat"><span data-icon="link"></span></button>
+        <textarea id="input-box" placeholder="Message Bubbles AI…" rows="2"></textarea>
+        <button id="send-btn" class="btn primary">Send <span data-icon="send" data-icon-size="sm"></span></button>
+        <input type="file" id="file-input" style="display:none;" multiple>
+      </div>
+    </div>
+
+    <div id="view-images">
+      <div id="image-canvas-panel">
+        <div id="image-canvas-wrap">
+          <img id="image-preview" draggable="false" style="display:none;">
+          <div id="image-crop-box"></div>
+          <div class="empty-state" id="image-empty-state"><span data-icon="image" data-icon-size="lg"></span> Open an image to start editing</div>
+        </div>
+      </div>
+      <div id="image-controls-panel">
+        <button id="image-choose-btn" class="btn primary full"><span data-icon="folderOpen" data-icon-size="sm"></span> Open Image</button>
+        <input type="file" id="image-file-input" accept="image/*" style="display:none;">
+        <div id="image-dims" class="muted" style="margin:8px 0;"></div>
+
+        <div class="section-heading">Resize</div>
+        <div class="row">
+          <input type="number" id="image-resize-w" placeholder="Width">
+          <input type="number" id="image-resize-h" placeholder="Height">
+        </div>
+        <label class="checkbox-row"><input type="checkbox" id="image-keep-aspect" checked> Keep aspect ratio</label>
+        <button id="image-resize-btn" class="btn secondary full">Apply Resize</button>
+
+        <div class="section-heading">Rotate / Flip</div>
+        <div class="row">
+          <button id="image-rotate-left" class="btn secondary"><span data-icon="rotateCcw" data-icon-size="sm"></span> 90°</button>
+          <button id="image-rotate-right" class="btn secondary"><span data-icon="rotateCw" data-icon-size="sm"></span> 90°</button>
+        </div>
+        <div class="row">
+          <button id="image-flip-h" class="btn secondary"><span data-icon="flipH" data-icon-size="sm"></span> Flip H</button>
+          <button id="image-flip-v" class="btn secondary"><span data-icon="flipV" data-icon-size="sm"></span> Flip V</button>
+        </div>
+
+        <div class="section-heading">Crop</div>
+        <p class="muted small-note">Drag on the image to select an area, then apply.</p>
+        <button id="image-crop-btn" class="btn secondary full"><span data-icon="crop" data-icon-size="sm"></span> Apply Crop</button>
+
+        <div class="section-heading">Adjust</div>
+        <label class="field-label">Brightness</label>
+        <input type="range" id="image-brightness" min="0.2" max="2" step="0.05" value="1">
+        <label class="field-label">Contrast</label>
+        <input type="range" id="image-contrast" min="0.2" max="2" step="0.05" value="1">
+        <label class="field-label">Saturation</label>
+        <input type="range" id="image-saturation" min="0" max="2" step="0.05" value="1">
+        <div class="row">
+          <button id="image-grayscale-btn" class="btn secondary full"><span data-icon="droplet" data-icon-size="sm"></span> Grayscale</button>
+          <button id="image-sharpen-btn" class="btn secondary full"><span data-icon="sparkle" data-icon-size="sm"></span> Sharpen</button>
+        </div>
+
+        <div class="section-heading">Watermark</div>
+        <input type="text" id="image-watermark-text" placeholder="Text…">
+        <select id="image-watermark-position">
+          <option value="bottom-right">Bottom right</option>
+          <option value="bottom-left">Bottom left</option>
+          <option value="top-right">Top right</option>
+          <option value="top-left">Top left</option>
+          <option value="center">Center</option>
+        </select>
+        <button id="image-watermark-btn" class="btn secondary full"><span data-icon="type" data-icon-size="sm"></span> Add Watermark</button>
+
+        <div class="section-heading">Export</div>
+        <div class="row">
+          <button id="image-reset-btn" class="btn secondary"><span data-icon="rotateCcw" data-icon-size="sm"></span> Reset</button>
+          <button id="image-download-btn" class="btn primary"><span data-icon="download" data-icon-size="sm"></span> Download</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="view-code">
+      <div id="code-file-panel">
+        <div class="row">
+          <button id="code-refresh-btn" class="btn secondary full"><span data-icon="folderOpen" data-icon-size="sm"></span> Refresh</button>
+        </div>
+        <div class="search-wrap">
+          <span data-icon="search" data-icon-size="sm" class="search-icon"></span>
+          <input type="text" id="code-file-search" class="search-input" placeholder="Filter files…">
+        </div>
+        <div id="code-file-list"></div>
+      </div>
+      <div id="code-editor-panel">
+        <div id="code-editor-toolbar">
+          <input type="text" id="code-current-path" placeholder="new-file.py">
+          <button id="code-new-btn" class="btn secondary" title="New file"><span data-icon="filePlus" data-icon-size="sm"></span></button>
+          <button id="code-ask-ai-btn" class="btn secondary" title="Ask the AI about this file"><span data-icon="brain" data-icon-size="sm"></span></button>
+          <button id="code-save-btn" class="btn primary"><span data-icon="save" data-icon-size="sm"></span> Save</button>
+        </div>
+        <textarea id="code-editor" spellcheck="false" placeholder="Pick a file on the left, or type a path above and click the new-file button…"></textarea>
+      </div>
+    </div>
+  </main>
+
+  <div id="sync-modal-overlay" class="modal-overlay hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <span><span data-icon="link" data-icon-size="sm"></span> Sync context from another chat</span>
+        <button id="sync-modal-close" class="modal-close"><span data-icon="close" data-icon-size="sm"></span></button>
+      </div>
+      <div class="search-wrap">
+        <span data-icon="search" data-icon-size="sm" class="search-icon"></span>
+        <input type="text" id="sync-search-input" placeholder="Search chats…">
+      </div>
+      <div id="sync-modal-list"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="/icons.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

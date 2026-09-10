@@ -1,0 +1,15 @@
+{
+  "id": "hello-1787378965955-fbe87e",
+  "title": "hello",
+  "updated_at": 1787378965.9564178,
+  "messages": [
+    {
+      "role": "user",
+      "content": "hello"
+    },
+    {
+      "role": "assistant",
+      "content": "\ud83e\udee7 **Demo mode** - no real AI provider is configured yet, so this is a canned reply just so you can see the app working end to end.\n\nYou said: \"hello\"\n\nTo get real answers: open the **AI Brain** tab and either add an API key (OpenAI/Anthropic/DeepSeek/Kimi), point it at a local Ollama server, or load an offline .gguf model file - then hit Save."
+    }
+  ]
+}
