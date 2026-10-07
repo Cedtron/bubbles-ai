@@ -1,8 +1,26 @@
-// Each conversation is its own object: { sessionId, messages }.
-// activeConvo is reassigned (not mutated) whenever the user switches
-// or starts a chat - so a reply that's still in flight for a chat the
-// user has since navigated away from keeps writing to ITS OWN object,
-// never into whatever conversation happens to be on screen now.
+// ==========================================================================
+// Bubbles AI - Frontend Application Controller (Gmail Design & Desktop PWA)
+// ==========================================================================
+
+// Non-blocking toast replacement for window.alert (iframe safety)
+window.alert = function(msg) {
+  showToast(msg);
+};
+
+function showToast(msg) {
+  let toast = document.getElementById("app-toast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "app-toast";
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = "1";
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => { toast.style.opacity = "0"; }, 3500);
+}
+
+// Conversation State
 let activeConvo = { sessionId: null, messages: [] };
 
 const state = {
@@ -11,37 +29,214 @@ const state = {
   pendingAttachments: [],
   activitySince: 0,
   sessionSearch: "",
+  theme: localStorage.getItem("bubbles_theme") || "light",
+  accent: localStorage.getItem("bubbles_accent") || "#1a73e8",
+  modelsList: [],
+  deferredInstallPrompt: null,
 };
 
 // ------------------------------------------------------------------
-// Tabs
+// 1. Splash Loader Screen
+// ------------------------------------------------------------------
 
-const FULL_PAGE_VIEWS = { images: "view-images", code: "view-code" };
+function hideLoaderScreen() {
+  const loader = document.getElementById("app-loader-screen");
+  if (loader) {
+    setTimeout(() => {
+      loader.classList.add("fade-out");
+      setTimeout(() => {
+        loader.style.display = "none";
+      }, 450);
+    }, 700);
+  }
+}
 
-document.querySelectorAll(".tab-btn").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
-    document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
-    btn.classList.add("active");
-
-    const tabName = btn.dataset.tab;
-
-    Object.values(FULL_PAGE_VIEWS).forEach((viewId) => {
-      document.getElementById(viewId).style.display = "none";
-    });
-
-    if (FULL_PAGE_VIEWS[tabName]) {
-      document.getElementById("view-chat").style.display = "none";
-      document.getElementById(FULL_PAGE_VIEWS[tabName]).style.display = "flex";
-    } else {
-      document.getElementById("view-chat").style.display = "flex";
-      document.getElementById("tab-" + tabName).classList.add("active");
-    }
-  });
+document.getElementById("app-loader-screen")?.addEventListener("click", () => {
+  const loader = document.getElementById("app-loader-screen");
+  if (loader) {
+    loader.classList.add("fade-out");
+    setTimeout(() => { loader.style.display = "none"; }, 400);
+  }
 });
 
 // ------------------------------------------------------------------
-// Markdown-lite rendering (fenced code blocks, inline code, bold)
+// 2. Theme & Accent Customization
+// ------------------------------------------------------------------
+
+function setTheme(theme) {
+  state.theme = theme;
+  document.documentElement.setAttribute("data-theme", theme);
+  localStorage.setItem("bubbles_theme", theme);
+
+  const iconSpan = document.getElementById("theme-btn-icon");
+  if (iconSpan) {
+    iconSpan.setAttribute("data-icon", theme === "dark" ? "sun" : "moon");
+    renderIconPlaceholders();
+  }
+
+  document.querySelectorAll(".theme-card-option").forEach((card) => {
+    card.classList.toggle("active", card.dataset.theme === theme);
+  });
+}
+
+function adjustColor(hex, percent) {
+  const num = parseInt(hex.replace("#", ""), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = (num >> 16) + amt;
+  const G = (num >> 8 & 0x00FF) + amt;
+  const B = (num & 0x0000FF) + amt;
+  return "#" + (
+    0x1000000 +
+    (R < 255 ? (R < 1 ? 0 : R) : 255) * 0x10000 +
+    (G < 255 ? (G < 1 ? 0 : G) : 255) * 0x100 +
+    (B < 255 ? (B < 1 ? 0 : B) : 255)
+  ).toString(16).slice(1);
+}
+
+function applyAccentColor(hex) {
+  state.accent = hex;
+  localStorage.setItem("bubbles_accent", hex);
+
+  document.documentElement.style.setProperty("--accent", hex);
+  document.documentElement.style.setProperty("--accent-hover", adjustColor(hex, -15));
+  document.documentElement.style.setProperty("--accent-light", hex + "18");
+  document.documentElement.style.setProperty("--accent-subtle", hex + "10");
+  document.documentElement.style.setProperty("--accent-ring", hex + "40");
+
+  const picker = document.getElementById("accent-color-picker");
+  if (picker) picker.value = hex;
+  const quickInput = document.getElementById("quick-color-input");
+  if (quickInput) quickInput.value = hex;
+
+  document.querySelectorAll(".swatch-circle").forEach((sw) => {
+    sw.classList.toggle("active", (sw.dataset.color || "").toLowerCase() === hex.toLowerCase());
+  });
+}
+
+function setupThemeAndAccent() {
+  setTheme(state.theme);
+  applyAccentColor(state.accent);
+
+  document.getElementById("header-theme-btn").addEventListener("click", () => {
+    setTheme(state.theme === "dark" ? "light" : "dark");
+  });
+
+  document.querySelectorAll(".theme-card-option").forEach((card) => {
+    card.addEventListener("click", () => {
+      setTheme(card.dataset.theme);
+    });
+  });
+
+  const paletteBtn = document.getElementById("header-palette-btn");
+  const paletteMenu = document.getElementById("palette-popover");
+  paletteBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    paletteMenu.classList.toggle("open");
+    document.getElementById("profile-popover").classList.remove("open");
+  });
+
+  const avatarBtn = document.getElementById("header-avatar-btn");
+  const profilePopover = document.getElementById("profile-popover");
+  avatarBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    profilePopover.classList.toggle("open");
+    paletteMenu.classList.remove("open");
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!paletteMenu.contains(e.target) && e.target !== paletteBtn) {
+      paletteMenu.classList.remove("open");
+    }
+    if (!profilePopover.contains(e.target) && e.target !== avatarBtn) {
+      profilePopover.classList.remove("open");
+    }
+  });
+
+  document.querySelectorAll(".swatch-circle").forEach((sw) => {
+    sw.addEventListener("click", () => {
+      applyAccentColor(sw.dataset.color);
+    });
+  });
+
+  const colorPicker = document.getElementById("accent-color-picker");
+  const quickPicker = document.getElementById("quick-color-input");
+  [colorPicker, quickPicker].forEach((inp) => {
+    if (inp) {
+      inp.addEventListener("input", (e) => applyAccentColor(e.target.value));
+      inp.addEventListener("change", (e) => applyAccentColor(e.target.value));
+    }
+  });
+
+  document.getElementById("accent-reset-btn").addEventListener("click", () => {
+    applyAccentColor("#1a73e8");
+  });
+
+  document.getElementById("profile-settings-btn").addEventListener("click", () => {
+    profilePopover.classList.remove("open");
+    switchTab("settings");
+  });
+
+  document.getElementById("header-brain-chip").addEventListener("click", () => {
+    switchTab("brain");
+  });
+
+  document.getElementById("brand-home-btn").addEventListener("click", () => {
+    switchTab("chats");
+  });
+}
+
+// ------------------------------------------------------------------
+// 3. Navigation Tabs (Gmail Style)
+// ------------------------------------------------------------------
+
+const ALL_VIEWS = [
+  "view-chat",
+  "view-brain",
+  "view-tools",
+  "view-images",
+  "view-code",
+  "view-webview",
+  "view-terminal",
+  "view-desktop",
+  "view-api",
+  "view-settings",
+];
+
+function switchTab(tabName) {
+  document.querySelectorAll(".nav-item-btn").forEach((b) => {
+    b.classList.toggle("active", b.dataset.tab === tabName);
+  });
+
+  ALL_VIEWS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+
+  let targetId = "view-" + (tabName === "chats" ? "chat" : tabName);
+  const targetEl = document.getElementById(targetId);
+  if (targetEl) {
+    targetEl.style.display = (targetId === "view-chat" || targetId === "view-images" || targetId === "view-code" || targetId === "view-webview") ? "flex" : "block";
+  }
+
+  const chatPanel = document.getElementById("sidebar-chat-panel");
+  if (chatPanel) {
+    chatPanel.style.display = tabName === "chats" ? "flex" : "none";
+  }
+}
+
+document.querySelectorAll(".nav-item-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    switchTab(btn.dataset.tab);
+  });
+});
+
+document.getElementById("btn-sidebar-toggle").addEventListener("click", () => {
+  document.getElementById("sidebar").classList.toggle("collapsed");
+});
+
+// ------------------------------------------------------------------
+// 4. Markdown Rendering
+// ------------------------------------------------------------------
 
 function escapeHtml(str) {
   const div = document.createElement("div");
@@ -51,14 +246,17 @@ function escapeHtml(str) {
 
 function renderContent(text) {
   let escaped = escapeHtml(text);
-  escaped = escaped.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => `<pre>${code.trim()}</pre>`);
+  escaped = escaped.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
+    return `<div class="code-block-wrapper"><div class="code-block-header"><span>${lang || "code"}</span><button class="copy-code-btn" onclick="navigator.clipboard.writeText(this.parentElement.nextElementSibling.innerText); showToast('Code copied to clipboard!');">Copy</button></div><pre><code>${code.trim()}</code></pre></div>`;
+  });
   escaped = escaped.replace(/`([^`\n]+)`/g, "<code>$1</code>");
   escaped = escaped.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
   return escaped.split(/\n(?![^<]*<\/pre>)/).join("<br>");
 }
 
 // ------------------------------------------------------------------
-// Chat rendering - always renders activeConvo, nothing else
+// 5. Chat Rendering
+// ------------------------------------------------------------------
 
 function renderChat(thinking = false) {
   const container = document.getElementById("chat-messages");
@@ -67,33 +265,57 @@ function renderChat(thinking = false) {
   const messages = activeConvo.messages;
 
   if (messages.length === 0) {
-    container.innerHTML = `<div class="empty-state">${icon("bubble", "icon-lg")} Say hello to start chatting with Bubbles AI</div>`;
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">${icon("brain", "icon-lg")}</div>
+        <div class="empty-state-title">Bubbles AI Workspace</div>
+        <div class="empty-state-subtitle">
+          Powered by Google AI. Ask questions, build features, run code, edit files, execute commands, or manipulate images.
+        </div>
+        <div class="quick-prompts-row">
+          <button class="prompt-chip" data-prompt="Help me debug a Python error">🐞 Debug Python Code</button>
+          <button class="prompt-chip" data-prompt="Design architecture for a modern web app">📐 Plan Web Architecture</button>
+          <button class="prompt-chip" data-prompt="Write a clean TypeScript REST API endpoint">💻 Write TypeScript API</button>
+          <button class="prompt-chip" data-prompt="What files are in this project workspace?">📂 Explore Workspace</button>
+        </div>
+      </div>
+    `;
+
+    container.querySelectorAll(".prompt-chip").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        document.getElementById("input-box").value = btn.dataset.prompt;
+        sendMessage();
+      });
+    });
   } else {
     for (const m of messages) {
       const row = document.createElement("div");
       row.className = "msg-row " + (m.role === "user" ? "user" : "assistant");
 
-      const sender = document.createElement("div");
-      sender.className = "sender";
-      sender.textContent = m.role === "user" ? "You" : "Bubbles AI";
+      const header = document.createElement("div");
+      header.className = "msg-header";
+      header.innerHTML = `
+        <span class="msg-author-badge">${m.role === "user" ? "You" : "Bubbles AI (Google Brain)"}</span>
+        <span class="msg-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+      `;
 
       const bubble = document.createElement("div");
       bubble.className = "bubble";
       bubble.innerHTML = renderContent(m.content);
 
-      row.appendChild(sender);
+      row.appendChild(header);
       row.appendChild(bubble);
 
       if (m.images && m.images.length > 0) {
         const imgRow = document.createElement("div");
-        imgRow.className = "chat-image-row";
+        imgRow.style.cssText = "display:flex; gap:8px; margin-top:8px;";
         for (const img of m.images) {
           const thumb = document.createElement("img");
-          thumb.className = "chat-image-thumb";
+          thumb.style.cssText = "width:120px; height:80px; object-fit:cover; border-radius:8px; cursor:pointer; border:1px solid var(--border);";
           thumb.src = img.preview;
           thumb.title = `${img.width} × ${img.height}px - click to open in Images tab`;
           thumb.addEventListener("click", () => {
-            document.querySelector('.tab-btn[data-tab="images"]').click();
+            switchTab("images");
             applyImageState(img);
           });
           imgRow.appendChild(thumb);
@@ -107,8 +329,12 @@ function renderChat(thinking = false) {
 
   if (thinking) {
     const t = document.createElement("div");
-    t.className = "thinking";
-    t.innerHTML = `${icon("bubble", "icon-sm")} Bubbles AI is thinking<span class='dot'>.</span><span class='dot'>.</span><span class='dot'>.</span>`;
+    t.className = "thinking-box";
+    t.innerHTML = `
+      <span data-icon="brain" data-icon-size="sm" style="color:var(--accent);"></span>
+      <span>Google AI Brain is thinking</span>
+      <span class="thinking-dot">.</span><span class="thinking-dot">.</span><span class="thinking-dot">.</span>
+    `;
     container.appendChild(t);
   }
 
@@ -117,7 +343,8 @@ function renderChat(thinking = false) {
 }
 
 // ------------------------------------------------------------------
-// Attachments
+// 6. Attachments
+// ------------------------------------------------------------------
 
 document.getElementById("attach-btn").addEventListener("click", () => {
   document.getElementById("file-input").click();
@@ -131,13 +358,13 @@ document.getElementById("file-input").addEventListener("change", async (e) => {
       const res = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await res.json();
       if (data.error) {
-        alert("Could not attach " + file.name + ": " + data.error);
+        showToast("Could not attach " + file.name + ": " + data.error);
         continue;
       }
       state.pendingAttachments.push(data);
       renderAttachments();
     } catch (err) {
-      alert("Could not upload " + file.name + ": " + err);
+      showToast("Could not upload " + file.name + ": " + err);
     }
   }
   e.target.value = "";
@@ -168,8 +395,7 @@ function buildMessageWithAttachments(text) {
   if (state.pendingAttachments.length === 0) return text;
   const blocks = state.pendingAttachments.map((att) => {
     if (att.type === "image") {
-      return `\n\nAttached image: ${att.filename} (id: ${att.id}, ${att.width}x${att.height}px). ` +
-        `You can edit it with the image_edit tool - no need to pass an id, it's the active image.`;
+      return `\n\nAttached image: ${att.filename} (id: ${att.id}, ${att.width}x${att.height}px).`;
     }
     return `\n\nAttached file: ${att.filename}\n\`\`\`\n${att.preview}\n\`\`\``;
   });
@@ -177,7 +403,8 @@ function buildMessageWithAttachments(text) {
 }
 
 // ------------------------------------------------------------------
-// Saving a conversation to the backend
+// 7. Messaging & Sessions
+// ------------------------------------------------------------------
 
 async function saveConvo(convo) {
   if (convo.messages.length === 0) return { id: convo.sessionId };
@@ -189,16 +416,6 @@ async function saveConvo(convo) {
   return await res.json();
 }
 
-// ------------------------------------------------------------------
-// Sending messages
-//
-// `convo` is captured once at the start - if the user clicks "New
-// Chat" or opens a different saved chat while this request is still
-// in flight, `activeConvo` gets reassigned to a NEW object, but
-// `convo` here keeps pointing at the original one. The reply always
-// lands in the chat that actually asked for it, whether or not it's
-// still the one on screen when the answer comes back.
-
 async function sendMessage() {
   const box = document.getElementById("input-box");
   const text = box.value.trim();
@@ -206,6 +423,7 @@ async function sendMessage() {
 
   const fullText = buildMessageWithAttachments(text || "See attached file(s).");
   box.value = "";
+  box.style.height = "auto";
   state.pendingAttachments = [];
   renderAttachments();
 
@@ -231,7 +449,7 @@ async function sendMessage() {
     replyText = data.reply || data.error || "(no response)";
     updatedImages = data.updated_images || [];
   } catch (e) {
-    replyText = "❌ Could not reach Bubbles AI backend: " + e;
+    replyText = "❌ Could not reach Google AI Brain backend: " + e;
   }
 
   convo.messages.push({ role: "assistant", content: replyText, images: updatedImages });
@@ -243,9 +461,10 @@ async function sendMessage() {
   if (convo === activeConvo) renderChat(false);
   await refreshSessions();
 
-  // If the AI edited the image currently open in the Images tab, refresh it live
-  const openInEditor = updatedImages.find((img) => img.id === imgState.id);
-  if (openInEditor) applyImageState(openInEditor);
+  if (updatedImages.length > 0 && imgState.id) {
+    const openInEditor = updatedImages.find((img) => img.id === imgState.id);
+    if (openInEditor) applyImageState(openInEditor);
+  }
 }
 
 document.getElementById("send-btn").addEventListener("click", sendMessage);
@@ -256,13 +475,26 @@ document.getElementById("input-box").addEventListener("keydown", (e) => {
   }
 });
 
-// ------------------------------------------------------------------
-// Sessions (list, search, switch, delete)
+document.getElementById("input-box").addEventListener("input", function() {
+  this.style.height = "auto";
+  this.style.height = Math.min(this.scrollHeight, 180) + "px";
+});
+
+document.getElementById("clear-chat-btn").addEventListener("click", () => {
+  activeConvo.messages = [];
+  renderChat();
+  showToast("Chat cleared.");
+});
 
 async function refreshSessions() {
-  const res = await fetch("/api/sessions");
-  state.sessions = await res.json();
-  renderSessionsList();
+  try {
+    const res = await fetch("/api/sessions");
+    state.sessions = await res.json();
+    renderSessionsList();
+    document.getElementById("badge-chat-count").textContent = state.sessions.length;
+  } catch (e) {
+    // silent
+  }
 }
 
 function renderSessionsList() {
@@ -276,65 +508,102 @@ function renderSessionsList() {
 
   if (filtered.length === 0) {
     const empty = document.createElement("div");
-    empty.className = "muted";
-    empty.style.padding = "10px";
-    empty.textContent = query ? "No chats match your search." : "No saved chats yet.";
+    empty.style.cssText = "padding:12px; font-size:12.5px; color:var(--text-muted); text-align:center;";
+    empty.textContent = query ? "No matching conversations" : "No saved chats yet";
     list.appendChild(empty);
     return;
   }
 
   for (const s of filtered) {
-    const item = document.createElement("div");
-    item.className = "session-item" + (s.id === activeConvo.sessionId ? " selected" : "");
-    item.textContent = s.title;
-    item.dataset.id = s.id;
-    item.addEventListener("click", () => loadSession(s.id));
-    list.appendChild(item);
-  }
-}
+    const row = document.createElement("div");
+    row.className = "session-row" + (s.id === activeConvo.sessionId ? " active" : "");
 
-document.getElementById("session-search").addEventListener("input", (e) => {
-  state.sessionSearch = e.target.value;
-  renderSessionsList();
-});
+    const mainInfo = document.createElement("div");
+    mainInfo.className = "session-main-info";
+    mainInfo.innerHTML = `
+      <span data-icon="chat" data-icon-size="sm" style="color:var(--text-muted);"></span>
+      <span class="session-title-text">${escapeHtml(s.title)}</span>
+    `;
+    mainInfo.addEventListener("click", () => loadSession(s.id));
+
+    const delBtn = document.createElement("button");
+    delBtn.className = "session-row-delete-btn";
+    delBtn.title = "Delete conversation";
+    delBtn.innerHTML = icon("trash", "icon-sm");
+    delBtn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      await fetch("/api/sessions/" + encodeURIComponent(s.id), { method: "DELETE" });
+      if (s.id === activeConvo.sessionId) {
+        activeConvo = { sessionId: null, messages: [] };
+        renderChat();
+      }
+      await refreshSessions();
+      showToast("Conversation deleted.");
+    });
+
+    row.appendChild(mainInfo);
+    row.appendChild(delBtn);
+    list.appendChild(row);
+  }
+  renderIconPlaceholders();
+}
 
 async function loadSession(id) {
   const res = await fetch("/api/sessions/" + encodeURIComponent(id));
   if (!res.ok) return;
   const data = await res.json();
   activeConvo = { sessionId: id, messages: data.messages || [] };
+  switchTab("chats");
   renderChat();
   renderSessionsList();
 }
 
 document.getElementById("new-chat-btn").addEventListener("click", () => {
   activeConvo = { sessionId: null, messages: [] };
+  switchTab("chats");
   renderChat();
   renderSessionsList();
+  document.getElementById("input-box").focus();
 });
 
 document.getElementById("save-chat-btn").addEventListener("click", async () => {
   const saved = await saveConvo(activeConvo);
   activeConvo.sessionId = saved.id;
   await refreshSessions();
+  showToast("Conversation saved!");
 });
 
 document.getElementById("delete-session-btn").addEventListener("click", async () => {
-  const selected = document.querySelector(".session-item.selected");
-  if (!selected) return;
-  const id = selected.dataset.id;
-  await fetch("/api/sessions/" + encodeURIComponent(id), { method: "DELETE" });
-  if (id === activeConvo.sessionId) {
+  if (activeConvo.sessionId) {
+    await fetch("/api/sessions/" + encodeURIComponent(activeConvo.sessionId), { method: "DELETE" });
     activeConvo = { sessionId: null, messages: [] };
     renderChat();
+    await refreshSessions();
+    showToast("Active chat deleted.");
   }
-  await refreshSessions();
+});
+
+const searchInput = document.getElementById("header-search-input");
+const searchClearBtn = document.getElementById("search-clear-btn");
+const searchBarWrap = document.getElementById("header-search-bar");
+
+searchInput.addEventListener("input", (e) => {
+  const val = e.target.value;
+  state.sessionSearch = val;
+  searchBarWrap.classList.toggle("has-query", Boolean(val));
+  renderSessionsList();
+});
+
+searchClearBtn.addEventListener("click", () => {
+  searchInput.value = "";
+  state.sessionSearch = "";
+  searchBarWrap.classList.remove("has-query");
+  renderSessionsList();
 });
 
 // ------------------------------------------------------------------
-// Sync - explicit, opt-in: pull another saved chat's content into
-// THIS chat, on request only. This is deliberately separate from
-// switching chats, which never mixes content.
+// 8. Context Syncing Modal
+// ------------------------------------------------------------------
 
 document.getElementById("sync-btn").addEventListener("click", () => {
   document.getElementById("sync-modal-overlay").classList.remove("hidden");
@@ -366,17 +635,13 @@ function renderSyncModalList(query) {
   );
 
   if (others.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "muted";
-    empty.style.padding = "10px";
-    empty.textContent = "No matching chats.";
-    list.appendChild(empty);
+    list.innerHTML = `<div style="padding:14px; color:var(--text-muted); font-size:13px; text-align:center;">No matching chats found.</div>`;
     return;
   }
 
   for (const s of others) {
     const item = document.createElement("div");
-    item.className = "session-item";
+    item.className = "session-row";
     item.textContent = s.title;
     item.addEventListener("click", () => confirmSync(s.id, s.title));
     list.appendChild(item);
@@ -395,119 +660,228 @@ async function confirmSync(sourceId, sourceTitle) {
 
   activeConvo.messages.push({
     role: "assistant",
-    content: `🔄 Synced context from "${sourceTitle}":\n\n${transcript}`,
+    content: `🔄 **Synced context from "${sourceTitle}":**\n\n${transcript}`,
   });
 
   renderChat();
   closeSyncModal();
-
   const saved = await saveConvo(activeConvo);
   activeConvo.sessionId = saved.id;
   await refreshSessions();
+  showToast(`Context pulled from "${sourceTitle}"`);
 }
 
 // ------------------------------------------------------------------
-// AI Brain settings
+// 9. Model Status & Health Matrix (AI Brain)
+// ------------------------------------------------------------------
+
+async function loadModelsStatus() {
+  const grid = document.getElementById("models-matrix-grid");
+  if (!grid) return;
+
+  try {
+    const res = await fetch("/api/models/status");
+    const data = await res.json();
+    state.modelsList = data.models || [];
+    renderModelsMatrix(data);
+  } catch (err) {
+    grid.innerHTML = `<div style="color:#ef4444; font-size:13px;">Error loading model status: ${err}</div>`;
+  }
+}
+
+function renderModelsMatrix(data) {
+  const grid = document.getElementById("models-matrix-grid");
+  grid.innerHTML = "";
+
+  const activeGoogleModel = data.activeGoogleModel || "gemma-4-26b-a4b-it";
+
+  for (const m of data.models || []) {
+    const card = document.createElement("div");
+    const isCurrent = m.id === activeGoogleModel || m.provider === data.activeProvider;
+    card.className = "model-card" + (isCurrent ? " active-model" : "");
+
+    let badgeClass = m.status;
+    let badgeText = m.status.replace("_", " ");
+    if (m.status === "online") badgeText = "● Online";
+    else if (m.status === "available") badgeText = "● Ready";
+    else if (m.status === "configured") badgeText = "● Configured";
+    else if (m.status === "requires_key") badgeText = "○ Key Needed";
+    else if (m.status === "local_ready") badgeText = "● Local";
+
+    card.innerHTML = `
+      <div class="model-card-header">
+        <div class="model-name">
+          <span>${escapeHtml(m.name)}</span>
+        </div>
+        <span class="status-badge ${badgeClass}">${badgeText}</span>
+      </div>
+      <div class="model-role-text">${escapeHtml(m.role)}</div>
+      <div class="model-specs-row">
+        <span><b>Context:</b> ${m.context}</span>
+        <span><b>Caps:</b> ${(m.capabilities || []).slice(0, 2).join(", ")}</span>
+      </div>
+      <div class="model-card-actions">
+        <button class="model-test-btn" data-model="${m.id}">Test Model</button>
+        ${!isCurrent ? `<button class="model-test-btn select-model-btn" data-model="${m.id}" data-provider="${m.provider}">Activate</button>` : `<span style="font-size:11.5px; font-weight:600; color:var(--accent);">Active</span>`}
+      </div>
+      <div class="model-test-feedback" id="feedback-${m.id}"></div>
+    `;
+
+    // Test button
+    const testBtn = card.querySelector(`.model-test-btn[data-model="${m.id}"]`);
+    testBtn.addEventListener("click", async () => {
+      const fb = card.querySelector(`#feedback-${m.id}`);
+      fb.style.display = "block";
+      fb.textContent = "Testing connection…";
+      testBtn.disabled = true;
+
+      try {
+        const res = await fetch("/api/models/test-single", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ modelId: m.id }),
+        });
+        const d = await res.json();
+        testBtn.disabled = false;
+        if (d.ok) {
+          fb.style.color = "#10b981";
+          fb.textContent = `⚡ ${d.latencyMs}ms - OK ("${d.response}")`;
+          showToast(`Model ${m.name} responded in ${d.latencyMs}ms!`);
+        } else {
+          fb.style.color = "#ef4444";
+          fb.textContent = `Error: ${d.error || "Failed"}`;
+        }
+      } catch (e) {
+        testBtn.disabled = false;
+        fb.style.color = "#ef4444";
+        fb.textContent = "Request error: " + e;
+      }
+    });
+
+    // Activate button
+    const actBtn = card.querySelector(`.select-model-btn`);
+    if (actBtn) {
+      actBtn.addEventListener("click", async () => {
+        if (m.provider === "google") {
+          document.getElementById("google-model-select").value = m.id;
+          document.getElementById("provider-select").value = "google";
+        } else {
+          document.getElementById("provider-select").value = m.provider;
+        }
+        document.getElementById("save-brain-btn").click();
+      });
+    }
+
+    grid.appendChild(card);
+  }
+}
+
+document.getElementById("refresh-models-btn")?.addEventListener("click", loadModelsStatus);
+
+// ------------------------------------------------------------------
+// 10. Settings & AI Brain
+// ------------------------------------------------------------------
 
 async function loadSettings() {
-  const res = await fetch("/api/settings");
-  const s = await res.json();
+  try {
+    const res = await fetch("/api/settings");
+    const s = await res.json();
 
-  const providerSelect = document.getElementById("provider-select");
-  providerSelect.innerHTML = "";
-  for (const p of s.providers) {
-    const opt = document.createElement("option");
-    opt.value = p;
-    opt.textContent = p;
-    if (p === s.DEFAULT_PROVIDER) opt.selected = true;
-    providerSelect.appendChild(opt);
+    const providerSelect = document.getElementById("provider-select");
+    providerSelect.innerHTML = "";
+    for (const p of s.providers || ["google", "demo"]) {
+      const opt = document.createElement("option");
+      opt.value = p;
+      opt.textContent = p.toUpperCase() + (p === "google" ? " (Recommended)" : "");
+      if (p === s.DEFAULT_PROVIDER) opt.selected = true;
+      providerSelect.appendChild(opt);
+    }
+
+    const googleModelSelect = document.getElementById("google-model-select");
+    if (googleModelSelect && s.google_models) {
+      googleModelSelect.innerHTML = "";
+      for (const m of s.google_models) {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        if (m === s.GOOGLE_MODEL) opt.selected = true;
+        googleModelSelect.appendChild(opt);
+      }
+    }
+
+    document.getElementById("key-google").value = s.GOOGLE_API_KEY || "";
+    document.getElementById("fallback-order-input").value = (s.fallback_order || []).join(",");
+    document.getElementById("key-openai").value = s.OPENAI_API_KEY || "";
+    document.getElementById("key-anthropic").value = s.ANTHROPIC_API_KEY || "";
+    document.getElementById("key-deepseek").value = s.DEEPSEEK_API_KEY || "";
+    document.getElementById("key-kimi").value = s.KIMI_API_KEY || "";
+    document.getElementById("omniroute-url").value = s.OMNIROUTE_BASE_URL || "";
+    document.getElementById("ollama-url").value = s.OLLAMA_BASE_URL || "";
+    document.getElementById("ollama-model").value = s.OLLAMA_MODEL || "";
+    document.getElementById("workspace-dir").value = s.WORKSPACE_DIR || "";
+
+    const activeModelName = s.GOOGLE_MODEL || "Gemma 4 / Gemini";
+    document.getElementById("profile-model-name").textContent = activeModelName;
+    document.getElementById("active-model-pill").innerHTML = `<span class="status-dot-emerald"></span> Google AI: ${activeModelName}`;
+  } catch (e) {
+    // silent
   }
-
-  const agentSelect = document.getElementById("agent-mode-select");
-  agentSelect.innerHTML = "";
-  for (const a of s.agent_modes) {
-    const opt = document.createElement("option");
-    opt.value = a;
-    opt.textContent = a;
-    agentSelect.appendChild(opt);
-  }
-
-  document.getElementById("fallback-order-input").value = (s.fallback_order || []).join(",");
-  document.getElementById("key-openai").value = s.OPENAI_API_KEY || "";
-  document.getElementById("key-anthropic").value = s.ANTHROPIC_API_KEY || "";
-  document.getElementById("key-deepseek").value = s.DEEPSEEK_API_KEY || "";
-  document.getElementById("key-kimi").value = s.KIMI_API_KEY || "";
-  document.getElementById("aws-access-key").value = s.AWS_ACCESS_KEY_ID || "";
-  document.getElementById("aws-secret-key").value = s.AWS_SECRET_ACCESS_KEY || "";
-  document.getElementById("aws-region").value = s.AWS_REGION || "us-east-1";
-  document.getElementById("nova-model").value = s.NOVA_MODEL || "amazon.nova-lite-v1:0";
-  document.getElementById("key-google").value = s.GOOGLE_API_KEY || "";
-  document.getElementById("google-model").value = s.GOOGLE_MODEL || "gemini-2.0-flash";
-  document.getElementById("omniroute-url").value = s.OMNIROUTE_BASE_URL || "";
-  document.getElementById("omniroute-key").value = s.OMNIROUTE_API_KEY || "";
-  document.getElementById("ollama-url").value = s.OLLAMA_BASE_URL || "";
-  document.getElementById("ollama-model").value = s.OLLAMA_MODEL || "";
-  document.getElementById("local-model-path").value = s.LOCAL_MODEL_PATH || "";
-  document.getElementById("workspace-dir").value = s.WORKSPACE_DIR || "";
 }
+
+document.getElementById("google-test-btn").addEventListener("click", async () => {
+  const resultBox = document.getElementById("google-test-result");
+  const model = document.getElementById("google-model-select").value;
+  const key = document.getElementById("key-google").value.trim();
+
+  resultBox.className = "test-result-box pending";
+  resultBox.textContent = "Connecting to Google AI Brain…";
+
+  try {
+    const res = await fetch("/api/test-google", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model, key }),
+    });
+    const data = await res.json();
+    resultBox.className = "test-result-box " + (data.ok ? "ok" : "fail");
+    resultBox.textContent = data.message;
+    if (data.ok) {
+      showToast("Google AI Brain connected successfully!");
+      loadModelsStatus();
+    }
+  } catch (err) {
+    resultBox.className = "test-result-box fail";
+    resultBox.textContent = "Failed to reach server: " + err;
+  }
+});
 
 document.getElementById("save-brain-btn").addEventListener("click", async () => {
   const payload = {
     DEFAULT_PROVIDER: document.getElementById("provider-select").value,
+    GOOGLE_MODEL: document.getElementById("google-model-select").value,
+    GOOGLE_API_KEY: document.getElementById("key-google").value.trim(),
     fallback_order: document.getElementById("fallback-order-input").value,
-    OPENAI_API_KEY: document.getElementById("key-openai").value,
-    ANTHROPIC_API_KEY: document.getElementById("key-anthropic").value,
-    DEEPSEEK_API_KEY: document.getElementById("key-deepseek").value,
-    KIMI_API_KEY: document.getElementById("key-kimi").value,
-    AWS_ACCESS_KEY_ID: document.getElementById("aws-access-key").value,
-    AWS_SECRET_ACCESS_KEY: document.getElementById("aws-secret-key").value,
-    AWS_REGION: document.getElementById("aws-region").value,
-    NOVA_MODEL: document.getElementById("nova-model").value,
-    GOOGLE_API_KEY: document.getElementById("key-google").value,
-    GOOGLE_MODEL: document.getElementById("google-model").value,
-    OMNIROUTE_BASE_URL: document.getElementById("omniroute-url").value,
-    OMNIROUTE_API_KEY: document.getElementById("omniroute-key").value,
-    OLLAMA_BASE_URL: document.getElementById("ollama-url").value,
-    OLLAMA_MODEL: document.getElementById("ollama-model").value,
-    LOCAL_MODEL_PATH: document.getElementById("local-model-path").value,
-    WORKSPACE_DIR: document.getElementById("workspace-dir").value,
+    OPENAI_API_KEY: document.getElementById("key-openai").value.trim(),
+    ANTHROPIC_API_KEY: document.getElementById("key-anthropic").value.trim(),
+    DEEPSEEK_API_KEY: document.getElementById("key-deepseek").value.trim(),
+    KIMI_API_KEY: document.getElementById("key-kimi").value.trim(),
+    OMNIROUTE_BASE_URL: document.getElementById("omniroute-url").value.trim(),
+    OLLAMA_BASE_URL: document.getElementById("ollama-url").value.trim(),
+    OLLAMA_MODEL: document.getElementById("ollama-model").value.trim(),
+    WORKSPACE_DIR: document.getElementById("workspace-dir").value.trim(),
   };
+
   await fetch("/api/settings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  alert("Settings saved. New messages will use the updated setup.");
+
+  showToast("AI Brain settings saved! Active provider is ready.");
+  await loadSettings();
+  await loadModelsStatus();
 });
 
-async function testConnection(urlInputId, resultElId) {
-  const resultEl = document.getElementById(resultElId);
-  const url = document.getElementById(urlInputId).value.trim();
-
-  resultEl.className = "test-result pending";
-  resultEl.textContent = "Testing…";
-
-  try {
-    const res = await fetch("/api/test-connection", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-    });
-    const data = await res.json();
-    resultEl.className = "test-result " + (data.ok ? "ok" : "fail");
-    resultEl.textContent = data.message;
-  } catch (e) {
-    resultEl.className = "test-result fail";
-    resultEl.textContent = "Could not reach Bubbles AI's own backend: " + e;
-  }
-}
-
-document.getElementById("omniroute-test-btn").addEventListener("click", () =>
-  testConnection("omniroute-url", "omniroute-test-result"));
-document.getElementById("ollama-test-btn").addEventListener("click", () =>
-  testConnection("ollama-url", "ollama-test-result"));
-
-// Show/hide key fields
 document.querySelectorAll(".eye-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     const target = document.getElementById(btn.dataset.target);
@@ -516,40 +890,164 @@ document.querySelectorAll(".eye-btn").forEach((btn) => {
   });
 });
 
+document.getElementById("ollama-test-btn").addEventListener("click", async () => {
+  const resultBox = document.getElementById("ollama-test-result");
+  const url = document.getElementById("ollama-url").value.trim();
+  resultBox.className = "test-result-box pending";
+  resultBox.textContent = "Testing…";
+
+  try {
+    const res = await fetch("/api/test-connection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    const d = await res.json();
+    resultBox.className = "test-result-box " + (d.ok ? "ok" : "fail");
+    resultBox.textContent = d.message;
+  } catch (e) {
+    resultBox.className = "test-result-box fail";
+    resultBox.textContent = "Connection error: " + e;
+  }
+});
+
+document.getElementById("omniroute-test-btn").addEventListener("click", async () => {
+  const resultBox = document.getElementById("omniroute-test-result");
+  const url = document.getElementById("omniroute-url").value.trim();
+  resultBox.className = "test-result-box pending";
+  resultBox.textContent = "Testing…";
+
+  try {
+    const res = await fetch("/api/test-connection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    const d = await res.json();
+    resultBox.className = "test-result-box " + (d.ok ? "ok" : "fail");
+    resultBox.textContent = d.message;
+  } catch (e) {
+    resultBox.className = "test-result-box fail";
+    resultBox.textContent = "Connection error: " + e;
+  }
+});
+
 // ------------------------------------------------------------------
-// Tools
+// 11. PWA & Desktop Installation
+// ------------------------------------------------------------------
 
-async function loadTools() {
-  const res = await fetch("/api/tools");
-  const tools = await res.json();
+function setupDesktopInstallation() {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    state.deferredInstallPrompt = e;
+    const headerInstall = document.getElementById("header-install-btn");
+    if (headerInstall) headerInstall.style.display = "flex";
+  });
 
-  const list = document.getElementById("tools-list");
-  list.innerHTML = "";
-  for (const t of tools) {
-    state.tools[t.name] = false;
+  const triggerInstall = async () => {
+    if (state.deferredInstallPrompt) {
+      state.deferredInstallPrompt.prompt();
+      const choice = await state.deferredInstallPrompt.userChoice;
+      if (choice.outcome === "accepted") {
+        showToast("Installing Bubbles AI on desktop!");
+      }
+      state.deferredInstallPrompt = null;
+    } else {
+      switchTab("desktop");
+      showToast("To install: use your browser's install icon or the Windows/Linux package!");
+    }
+  };
 
-    const item = document.createElement("div");
-    item.className = "tool-item";
+  document.getElementById("header-install-btn")?.addEventListener("click", triggerInstall);
+  document.getElementById("btn-trigger-pwa-install")?.addEventListener("click", triggerInstall);
 
-    const label = document.createElement("label");
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.addEventListener("change", () => { state.tools[t.name] = checkbox.checked; });
-    label.appendChild(checkbox);
-    label.append(t.name);
-
-    const desc = document.createElement("div");
-    desc.className = "muted";
-    desc.textContent = t.description;
-
-    item.appendChild(label);
-    item.appendChild(desc);
-    list.appendChild(item);
+  // Register Service Worker
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
   }
 }
 
 // ------------------------------------------------------------------
-// Terminal tab
+// 12. Web View Panel
+// ------------------------------------------------------------------
+
+function setupWebView() {
+  const input = document.getElementById("webview-url-input");
+  const iframe = document.getElementById("webview-frame");
+  const goBtn = document.getElementById("webview-go-btn");
+  const backBtn = document.getElementById("webview-back-btn");
+  const extBtn = document.getElementById("webview-external-btn");
+
+  const loadUrl = (url) => {
+    let finalUrl = url.trim();
+    if (!finalUrl.startsWith("http://") && !finalUrl.startsWith("https://") && !finalUrl.startsWith("/")) {
+      finalUrl = "https://" + finalUrl;
+    }
+    input.value = finalUrl;
+    iframe.src = finalUrl;
+  };
+
+  goBtn?.addEventListener("click", () => loadUrl(input.value));
+  input?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") loadUrl(input.value);
+  });
+
+  backBtn?.addEventListener("click", () => {
+    try { iframe.contentWindow?.history.back(); } catch {}
+  });
+
+  extBtn?.addEventListener("click", () => {
+    window.open(input.value, "_blank");
+  });
+
+  // Code editor preview button
+  document.getElementById("code-preview-btn")?.addEventListener("click", () => {
+    const content = document.getElementById("code-editor").value;
+    const path = document.getElementById("code-current-path").value;
+    switchTab("webview");
+    input.value = path || "preview.html";
+    const blob = new Blob([content], { type: "text/html" });
+    iframe.src = URL.createObjectURL(blob);
+    showToast("Loaded in Web View!");
+  });
+}
+
+// ------------------------------------------------------------------
+// 13. Tools Tab
+// ------------------------------------------------------------------
+
+async function loadTools() {
+  try {
+    const res = await fetch("/api/tools");
+    const tools = await res.json();
+
+    const list = document.getElementById("tools-list");
+    list.innerHTML = "";
+    for (const t of tools) {
+      state.tools[t.name] = true;
+
+      const card = document.createElement("div");
+      card.className = "tool-card";
+      card.innerHTML = `
+        <div class="tool-header-row">
+          <span class="tool-name-label">${escapeHtml(t.name)}</span>
+          <label style="cursor:pointer;"><input type="checkbox" checked data-tool="${escapeHtml(t.name)}"></label>
+        </div>
+        <div class="tool-desc-text">${escapeHtml(t.description)}</div>
+      `;
+      card.querySelector("input").addEventListener("change", (e) => {
+        state.tools[t.name] = e.target.checked;
+      });
+      list.appendChild(card);
+    }
+  } catch (e) {
+    // silent
+  }
+}
+
+// ------------------------------------------------------------------
+// 14. Terminal Tab & Activity Feed
+// ------------------------------------------------------------------
 
 function appendTerminalLine(cls, text) {
   const out = document.getElementById("terminal-output");
@@ -588,340 +1086,49 @@ async function runTerminalCommand() {
 }
 
 async function pollActivity() {
-  const followAgent = document.getElementById("terminal-follow-agent").checked;
-  if (followAgent) {
+  const follow = document.getElementById("terminal-follow-agent").checked;
+  if (follow) {
     try {
       const res = await fetch("/api/activity?since=" + state.activitySince);
       const entries = await res.json();
       for (const e of entries) {
         state.activitySince = Math.max(state.activitySince, e.time);
-        if (e.kind === "terminal") continue; // already shown when we ran it
+        if (e.kind === "terminal") continue;
         appendTerminalLine(e.kind, `[${e.kind}] ${e.message}`);
       }
-    } catch (e) {
-      // silent - polling failure shouldn't be noisy
+    } catch {
+      // silent
     }
   }
-  setTimeout(pollActivity, 1500);
+  setTimeout(pollActivity, 2000);
 }
 
 // ------------------------------------------------------------------
-// API tab
-
-function setupApiTab() {
-  const url = window.location.origin + "/v1";
-  document.getElementById("api-endpoint").value = url;
-  document.getElementById("copy-endpoint-btn").addEventListener("click", () => {
-    navigator.clipboard.writeText(url);
-  });
-  const pill = document.getElementById("status-pill");
-  pill.classList.add("online");
-  pill.innerHTML = '<span class="status-dot"></span>Online';
-}
-
+// 15. Code Editor View
 // ------------------------------------------------------------------
-// Settings tab - accent color + app icon (persisted in localStorage)
 
-const DEFAULT_ACCENT = "#8b5cf6";
-
-function applyAccentColor(color) {
-  document.documentElement.style.setProperty("--accent", color);
-}
-
-function updateThemeColorMeta(color) {
-  let meta = document.querySelector('meta[name="theme-color"]');
-  if (!meta) {
-    meta = document.createElement("meta");
-    meta.name = "theme-color";
-    document.head.appendChild(meta);
-  }
-  meta.content = color;
-}
-
-function setupSettingsTab() {
-  const picker = document.getElementById("accent-color-picker");
-  const stored = localStorage.getItem("bubbles_accent");
-  if (stored) {
-    picker.value = stored;
-    applyAccentColor(stored);
-    updateThemeColorMeta(stored);
-  } else {
-    updateThemeColorMeta(DEFAULT_ACCENT);
-  }
-
-  const handleAccentChange = () => {
-    applyAccentColor(picker.value);
-    localStorage.setItem("bubbles_accent", picker.value);
-    updateThemeColorMeta(picker.value);
-  };
-  picker.addEventListener("input", handleAccentChange);
-  picker.addEventListener("change", handleAccentChange);
-
-  document.getElementById("accent-reset-btn").addEventListener("click", () => {
-    picker.value = DEFAULT_ACCENT;
-    applyAccentColor(DEFAULT_ACCENT);
-    updateThemeColorMeta(DEFAULT_ACCENT);
-    localStorage.removeItem("bubbles_accent");
-  });
-
-  const storedIcon = localStorage.getItem("bubbles_icon");
-  if (storedIcon) {
-    document.getElementById("logo").src = storedIcon;
-    document.getElementById("icon-preview").src = storedIcon;
-  }
-
-  document.getElementById("icon-upload-input").addEventListener("change", (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      document.getElementById("logo").src = reader.result;
-      document.getElementById("icon-preview").src = reader.result;
-      localStorage.setItem("bubbles_icon", reader.result);
-    };
-    reader.readAsDataURL(file);
-  });
-
-  document.getElementById("icon-reset-btn").addEventListener("click", () => {
-    document.getElementById("logo").src = "/logo.png";
-    document.getElementById("icon-preview").src = "/logo.png";
-    localStorage.removeItem("bubbles_icon");
-  });
-}
-
-// ------------------------------------------------------------------
-// Image editor (its own page - swapped into #main via the nav)
-
-const imgState = { id: null, naturalWidth: 0, naturalHeight: 0 };
-let cropSelection = null;
-let cropDragStart = null;
-
-document.getElementById("image-choose-btn").addEventListener("click", () => {
-  document.getElementById("image-file-input").click();
-});
-
-document.getElementById("image-file-input").addEventListener("change", async (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  const formData = new FormData();
-  formData.append("file", file);
-  try {
-    const res = await fetch("/api/image/upload", { method: "POST", body: formData });
-    const data = await res.json();
-    if (data.error) { alert(data.error); return; }
-    applyImageState(data);
-  } catch (err) {
-    alert("Could not open image: " + err);
-  }
-  e.target.value = "";
-});
-
-function applyImageState(data) {
-  imgState.id = data.id;
-  imgState.naturalWidth = data.width;
-  imgState.naturalHeight = data.height;
-
-  const img = document.getElementById("image-preview");
-  img.src = data.preview;
-  img.style.display = "block";
-  document.getElementById("image-empty-state").style.display = "none";
-  document.getElementById("image-dims").textContent = `${data.width} × ${data.height}px`;
-  document.getElementById("image-resize-w").value = data.width;
-  document.getElementById("image-resize-h").value = data.height;
-  clearCropSelection();
-}
-
-async function applyImageOp(op, params) {
-  if (!imgState.id) { alert("Open an image first."); return; }
-  try {
-    const res = await fetch(`/api/image/${imgState.id}/op`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ op, params }),
-    });
-    const data = await res.json();
-    if (data.error) { alert(data.error); return; }
-    applyImageState(data);
-  } catch (err) {
-    alert("Edit failed: " + err);
-  }
-}
-
-// Resize (with aspect-lock)
-document.getElementById("image-resize-w").addEventListener("input", () => {
-  if (!document.getElementById("image-keep-aspect").checked || !imgState.naturalWidth) return;
-  const w = parseInt(document.getElementById("image-resize-w").value) || 0;
-  if (!w) return;
-  const ratio = imgState.naturalHeight / imgState.naturalWidth;
-  document.getElementById("image-resize-h").value = Math.round(w * ratio);
-});
-document.getElementById("image-resize-h").addEventListener("input", () => {
-  if (!document.getElementById("image-keep-aspect").checked || !imgState.naturalHeight) return;
-  const h = parseInt(document.getElementById("image-resize-h").value) || 0;
-  if (!h) return;
-  const ratio = imgState.naturalWidth / imgState.naturalHeight;
-  document.getElementById("image-resize-w").value = Math.round(h * ratio);
-});
-document.getElementById("image-resize-btn").addEventListener("click", () => {
-  const width = parseInt(document.getElementById("image-resize-w").value);
-  const height = parseInt(document.getElementById("image-resize-h").value);
-  if (!width || !height) { alert("Enter a width and height."); return; }
-  applyImageOp("resize", { width, height });
-});
-
-document.getElementById("image-rotate-left").addEventListener("click", () => applyImageOp("rotate", { degrees: -90 }));
-document.getElementById("image-rotate-right").addEventListener("click", () => applyImageOp("rotate", { degrees: 90 }));
-document.getElementById("image-flip-h").addEventListener("click", () => applyImageOp("flip", { axis: "horizontal" }));
-document.getElementById("image-flip-v").addEventListener("click", () => applyImageOp("flip", { axis: "vertical" }));
-document.getElementById("image-grayscale-btn").addEventListener("click", () => applyImageOp("grayscale", {}));
-document.getElementById("image-sharpen-btn").addEventListener("click", () => applyImageOp("sharpen", {}));
-
-document.getElementById("image-brightness").addEventListener("change", (e) =>
-  applyImageOp("brightness", { factor: parseFloat(e.target.value) }));
-document.getElementById("image-contrast").addEventListener("change", (e) =>
-  applyImageOp("contrast", { factor: parseFloat(e.target.value) }));
-document.getElementById("image-saturation").addEventListener("change", (e) =>
-  applyImageOp("saturation", { factor: parseFloat(e.target.value) }));
-
-document.getElementById("image-watermark-btn").addEventListener("click", () => {
-  const text = document.getElementById("image-watermark-text").value.trim();
-  if (!text) { alert("Type some watermark text first."); return; }
-  const position = document.getElementById("image-watermark-position").value;
-  applyImageOp("watermark", { text, position, opacity: 0.6 });
-});
-
-document.getElementById("image-reset-btn").addEventListener("click", async () => {
-  if (!imgState.id) return;
-  const res = await fetch(`/api/image/${imgState.id}/reset`, { method: "POST" });
-  const data = await res.json();
-  applyImageState(data);
-  document.getElementById("image-brightness").value = 1;
-  document.getElementById("image-contrast").value = 1;
-  document.getElementById("image-saturation").value = 1;
-});
-
-document.getElementById("image-download-btn").addEventListener("click", () => {
-  if (!imgState.id) { alert("Open an image first."); return; }
-  window.open(`/api/image/${imgState.id}/download?format=PNG`, "_blank");
-});
-
-// Crop - drag a selection box directly on the image
-const cropWrap = document.getElementById("image-canvas-wrap");
-const cropBoxEl = document.getElementById("image-crop-box");
-
-cropWrap.addEventListener("mousedown", (e) => {
-  const img = document.getElementById("image-preview");
-  if (!imgState.id || img.style.display === "none") return;
-  const rect = img.getBoundingClientRect();
-  const wrapRect = cropWrap.getBoundingClientRect();
-  cropDragStart = {
-    x: e.clientX - rect.left,
-    y: e.clientY - rect.top,
-    offsetX: rect.left - wrapRect.left,
-    offsetY: rect.top - wrapRect.top,
-    rect,
-  };
-  cropBoxEl.style.display = "block";
-  e.preventDefault();
-});
-
-cropWrap.addEventListener("mousemove", (e) => {
-  if (!cropDragStart) return;
-  const { rect, offsetX, offsetY } = cropDragStart;
-  const curX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
-  const curY = Math.max(0, Math.min(e.clientY - rect.top, rect.height));
-  const x = Math.min(curX, cropDragStart.x);
-  const y = Math.min(curY, cropDragStart.y);
-  const w = Math.abs(curX - cropDragStart.x);
-  const h = Math.abs(curY - cropDragStart.y);
-
-  cropBoxEl.style.left = (x + offsetX) + "px";
-  cropBoxEl.style.top = (y + offsetY) + "px";
-  cropBoxEl.style.width = w + "px";
-  cropBoxEl.style.height = h + "px";
-
-  const scaleX = imgState.naturalWidth / rect.width;
-  const scaleY = imgState.naturalHeight / rect.height;
-  cropSelection = {
-    x: Math.round(x * scaleX),
-    y: Math.round(y * scaleY),
-    width: Math.round(w * scaleX),
-    height: Math.round(h * scaleY),
-  };
-});
-
-window.addEventListener("mouseup", () => { cropDragStart = null; });
-
-function clearCropSelection() {
-  cropSelection = null;
-  cropBoxEl.style.display = "none";
-  cropBoxEl.style.width = "0px";
-  cropBoxEl.style.height = "0px";
-}
-
-document.getElementById("image-crop-btn").addEventListener("click", () => {
-  if (!cropSelection || cropSelection.width < 2 || cropSelection.height < 2) {
-    alert("Drag on the image first to select a crop area.");
-    return;
-  }
-  applyImageOp("crop", cropSelection);
-});
-
-// ------------------------------------------------------------------
-// Custom title bar - only shown when running inside the pywebview
-// native window (frameless, so it has no OS title bar of its own).
-// In plain-browser fallback mode this stays hidden and the browser's
-// own chrome is used instead.
-
-function setupTitleBar() {
-  const titlebar = document.getElementById("titlebar");
-
-  const reveal = () => titlebar.classList.remove("hidden");
-
-  if (window.pywebview && window.pywebview.api) {
-    reveal();
-  } else {
-    window.addEventListener("pywebviewready", reveal);
-  }
-
-  document.getElementById("titlebar-minimize").addEventListener("click", () => {
-    if (window.pywebview) window.pywebview.api.minimize();
-  });
-  document.getElementById("titlebar-maximize").addEventListener("click", () => {
-    if (window.pywebview) window.pywebview.api.toggle_maximize();
-  });
-  document.getElementById("titlebar-close").addEventListener("click", () => {
-    if (window.pywebview) window.pywebview.api.close();
-  });
-}
-
-// ------------------------------------------------------------------
-// Code editor (its own page - browse/edit files in the workspace)
-
-const codeState = { files: [], currentPath: null, dirty: false };
+const codeState = { files: [], currentPath: null };
 
 async function loadCodeFileList() {
-  const res = await fetch("/api/code/list");
-  const data = await res.json();
-  codeState.files = data.files || [];
-  renderCodeFileList();
+  try {
+    const res = await fetch("/api/code/list");
+    const data = await res.json();
+    codeState.files = data.files || [];
+    renderCodeFileList();
+  } catch {
+    // silent
+  }
 }
 
 function renderCodeFileList() {
   const list = document.getElementById("code-file-list");
   list.innerHTML = "";
 
-  const query = document.getElementById("code-file-search").value.trim().toLowerCase();
-  const filtered = query
-    ? codeState.files.filter((f) => f.toLowerCase().includes(query))
-    : codeState.files;
+  const q = (document.getElementById("code-file-search").value || "").trim().toLowerCase();
+  const filtered = q ? codeState.files.filter((f) => f.toLowerCase().includes(q)) : codeState.files;
 
   if (filtered.length === 0) {
-    const empty = document.createElement("div");
-    empty.className = "muted";
-    empty.style.padding = "8px";
-    empty.textContent = query ? "No files match." : "No files in this workspace yet.";
-    list.appendChild(empty);
+    list.innerHTML = `<div style="padding:10px; font-size:12.5px; color:var(--text-muted);">No files match.</div>`;
     return;
   }
 
@@ -940,31 +1147,25 @@ document.getElementById("code-refresh-btn").addEventListener("click", loadCodeFi
 async function openCodeFile(path) {
   const res = await fetch("/api/code/file?path=" + encodeURIComponent(path));
   const data = await res.json();
-  if (data.error) { alert(data.error); return; }
+  if (data.error) { showToast(data.error); return; }
 
   codeState.currentPath = path;
-  codeState.dirty = false;
   document.getElementById("code-current-path").value = path;
   document.getElementById("code-editor").value = data.content;
   renderCodeFileList();
 }
 
-document.getElementById("code-editor").addEventListener("input", () => {
-  codeState.dirty = true;
-});
-
 document.getElementById("code-new-btn").addEventListener("click", () => {
   const path = document.getElementById("code-current-path").value.trim();
-  if (!path) { alert("Type a file path first (e.g. notes.md)."); return; }
+  if (!path) { showToast("Type a filename above first (e.g. main.ts)"); return; }
   codeState.currentPath = path;
-  codeState.dirty = true;
   document.getElementById("code-editor").value = "";
   document.getElementById("code-editor").focus();
 });
 
 document.getElementById("code-save-btn").addEventListener("click", async () => {
   const path = document.getElementById("code-current-path").value.trim();
-  if (!path) { alert("Type a file path first (e.g. notes.md)."); return; }
+  if (!path) { showToast("Enter a filename first"); return; }
   const content = document.getElementById("code-editor").value;
 
   const res = await fetch("/api/code/file", {
@@ -973,33 +1174,214 @@ document.getElementById("code-save-btn").addEventListener("click", async () => {
     body: JSON.stringify({ path, content }),
   });
   const data = await res.json();
-  if (data.error) { alert(data.error); return; }
+  if (data.error) { showToast(data.error); return; }
 
-  codeState.currentPath = path;
-  codeState.dirty = false;
+  showToast(`File "${path}" saved!`);
   await loadCodeFileList();
 });
 
 document.getElementById("code-ask-ai-btn").addEventListener("click", () => {
   const path = codeState.currentPath;
   const content = document.getElementById("code-editor").value;
-  if (!path) { alert("Open a file first."); return; }
+  if (!path) { showToast("Open a file first"); return; }
 
-  document.querySelector('.tab-btn[data-tab="chats"]').click();
+  switchTab("chats");
   const box = document.getElementById("input-box");
-  box.value = `About this file (${path}):\n\`\`\`\n${content.slice(0, 3000)}\n\`\`\`\n\n`;
+  box.value = `Please review and help me with this file (\`${path}\`):\n\`\`\`\n${content.slice(0, 3000)}\n\`\`\`\n`;
   box.focus();
 });
 
 // ------------------------------------------------------------------
-// Init
+// 16. Image Studio View
+// ------------------------------------------------------------------
+
+const imgState = { id: null, width: 0, height: 0 };
+let cropSelection = null;
+let cropStart = null;
+
+const previewEl = document.getElementById("image-preview");
+const emptyStateEl = document.getElementById("image-empty-state");
+const cropBoxEl = document.getElementById("image-crop-box");
+
+function applyImageState(state) {
+  imgState.id = state.id;
+  imgState.width = state.width;
+  imgState.height = state.height;
+
+  previewEl.src = state.preview;
+  previewEl.style.display = "block";
+  emptyStateEl.style.display = "none";
+
+  document.getElementById("image-dims").textContent = `${state.width} × ${state.height} px`;
+  document.getElementById("image-resize-w").value = state.width;
+  document.getElementById("image-resize-h").value = state.height;
+}
+
+document.getElementById("image-choose-btn").addEventListener("click", () => {
+  document.getElementById("image-file-input").click();
+});
+
+document.getElementById("image-file-input").addEventListener("change", async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  try {
+    const res = await fetch("/api/image/upload", { method: "POST", body: formData });
+    const data = await res.json();
+    if (data.error) { showToast(data.error); return; }
+    applyImageState(data);
+    showToast(`Image "${file.name}" loaded!`);
+  } catch (err) {
+    showToast("Upload failed: " + err);
+  }
+});
+
+async function applyImageOp(op, params = {}) {
+  if (!imgState.id) { showToast("Open an image first."); return; }
+
+  try {
+    const res = await fetch(`/api/image/${encodeURIComponent(imgState.id)}/op`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op, params }),
+    });
+    const data = await res.json();
+    if (data.error) { showToast(data.error); return; }
+    applyImageState(data);
+    showToast(`Applied ${op}`);
+  } catch (err) {
+    showToast("Operation failed: " + err);
+  }
+}
+
+document.getElementById("image-resize-btn").addEventListener("click", () => {
+  const width = parseInt(document.getElementById("image-resize-w").value, 10);
+  const height = parseInt(document.getElementById("image-resize-h").value, 10);
+  if (width && height) applyImageOp("resize", { width, height });
+});
+
+document.getElementById("image-rotate-left").addEventListener("click", () => applyImageOp("rotate", { degrees: 270 }));
+document.getElementById("image-rotate-right").addEventListener("click", () => applyImageOp("rotate", { degrees: 90 }));
+document.getElementById("image-flip-h").addEventListener("click", () => applyImageOp("flip", { axis: "horizontal" }));
+document.getElementById("image-flip-v").addEventListener("click", () => applyImageOp("flip", { axis: "vertical" }));
+document.getElementById("image-grayscale-btn").addEventListener("click", () => applyImageOp("grayscale"));
+document.getElementById("image-sharpen-btn").addEventListener("click", () => applyImageOp("sharpen"));
+
+document.getElementById("image-watermark-btn").addEventListener("click", () => {
+  const text = document.getElementById("image-watermark-text").value.trim();
+  const position = document.getElementById("image-watermark-position").value;
+  if (!text) { showToast("Enter watermark text"); return; }
+  applyImageOp("watermark", { text, position, opacity: 0.7 });
+});
+
+document.getElementById("image-reset-btn").addEventListener("click", async () => {
+  if (!imgState.id) return;
+  const res = await fetch(`/api/image/${encodeURIComponent(imgState.id)}/reset`, { method: "POST" });
+  const data = await res.json();
+  if (data.error) { showToast(data.error); return; }
+  applyImageState(data);
+  showToast("Image reset to original.");
+});
+
+document.getElementById("image-download-btn").addEventListener("click", () => {
+  if (!imgState.id) return;
+  window.location.href = `/api/image/${encodeURIComponent(imgState.id)}/download?format=PNG`;
+});
+
+// Image Crop selection drag
+previewEl.addEventListener("mousedown", (e) => {
+  if (!imgState.id) return;
+  const rect = previewEl.getBoundingClientRect();
+  cropStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  cropSelection = null;
+  cropBoxEl.style.display = "block";
+  cropBoxEl.style.left = cropStart.x + "px";
+  cropBoxEl.style.top = cropStart.y + "px";
+  cropBoxEl.style.width = "0px";
+  cropBoxEl.style.height = "0px";
+});
+
+window.addEventListener("mousemove", (e) => {
+  if (!cropStart) return;
+  const rect = previewEl.getBoundingClientRect();
+  const curX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+  const curY = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+
+  const left = Math.min(cropStart.x, curX);
+  const top = Math.min(cropStart.y, curY);
+  const width = Math.abs(curX - cropStart.x);
+  const height = Math.abs(curY - cropStart.y);
+
+  cropBoxEl.style.left = left + "px";
+  cropBoxEl.style.top = top + "px";
+  cropBoxEl.style.width = width + "px";
+  cropBoxEl.style.height = height + "px";
+
+  const scaleX = imgState.width / rect.width;
+  const scaleY = imgState.height / rect.height;
+
+  cropSelection = {
+    x: Math.round(left * scaleX),
+    y: Math.round(top * scaleY),
+    width: Math.round(width * scaleX),
+    height: Math.round(height * scaleY),
+  };
+});
+
+window.addEventListener("mouseup", () => {
+  cropStart = null;
+});
+
+document.getElementById("image-crop-btn").addEventListener("click", () => {
+  if (!cropSelection || cropSelection.width < 10 || cropSelection.height < 10) {
+    showToast("Click and drag on the image to select a crop area first.");
+    return;
+  }
+  applyImageOp("crop", cropSelection);
+  cropBoxEl.style.display = "none";
+  cropSelection = null;
+});
+
+// ------------------------------------------------------------------
+// 17. API Endpoint Tab
+// ------------------------------------------------------------------
+
+function setupApiTab() {
+  const url = window.location.origin + "/v1";
+  document.getElementById("api-endpoint").value = url;
+  document.getElementById("copy-endpoint-btn").addEventListener("click", () => {
+    navigator.clipboard.writeText(url);
+    showToast("API Endpoint URL copied!");
+  });
+}
+
+// ------------------------------------------------------------------
+// 18. App Initialization
+// ------------------------------------------------------------------
 
 (async function init() {
   renderIconPlaceholders();
+  setupThemeAndAccent();
   setupApiTab();
-  setupTitleBar();
-  setupSettingsTab();
-  await Promise.all([loadSettings(), loadTools(), refreshSessions(), loadCodeFileList()]);
+  setupDesktopInstallation();
+  setupWebView();
+
+  try {
+    await Promise.all([
+      loadSettings(),
+      loadTools(),
+      refreshSessions(),
+      loadCodeFileList(),
+      loadModelsStatus(),
+    ]);
+  } catch (e) {
+    // tolerant
+  }
+
   renderChat();
   pollActivity();
+  hideLoaderScreen();
 })();

@@ -1,296 +1,749 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bubbles AI</title>
+<meta name="description" content="Multi-agent AI assistant and developer workstation with Google AI brain, terminal, code editor, and image manipulation.">
+<meta property="og:title" content="Bubbles AI">
+<meta property="og:description" content="Multi-agent AI assistant and developer workstation with Google AI brain, terminal, code editor, and image manipulation.">
 <link rel="icon" type="image/png" href="/logo.png">
-<meta name="theme-color" content="#8b5cf6">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#1a73e8">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
 
-<div id="titlebar" class="pywebview-drag-region hidden">
-  <div id="titlebar-left">
-    <img src="/logo.png" alt="" id="titlebar-logo">
-    <span>Bubbles AI</span>
+<!-- Splash Loader Screen with Planetary Mascot Logo -->
+<div id="app-loader-screen">
+  <div class="loader-mascot-container">
+    <div class="loader-ring-glow"></div>
+    <div class="loader-sparkle top-right">✦</div>
+    <img src="/logo.png" alt="Bubbles AI Mascot" class="loader-logo-img">
+    <div class="loader-sparkle bottom-left">✦</div>
   </div>
-  <div id="titlebar-controls">
-    <button id="titlebar-minimize" title="Minimize"><span data-icon="minimize" data-icon-size="sm"></span></button>
-    <button id="titlebar-maximize" title="Maximize"><span data-icon="maximize" data-icon-size="sm"></span></button>
-    <button id="titlebar-close" title="Close"><span data-icon="close" data-icon-size="sm"></span></button>
+  <div class="loader-app-title">
+    <span>Bubbles</span><span class="ai-tag">AI</span>
+  </div>
+  <div class="loader-status-msg" id="loader-status-msg">
+    Initializing Google AI Brain & Developer Tools…
+  </div>
+  <div class="loader-progress-track">
+    <div class="loader-progress-bar"></div>
   </div>
 </div>
 
 <div id="app">
 
-  <aside id="sidebar">
-    <div id="header">
-      <img src="/logo.png" alt="Bubbles AI" id="logo">
-      <h1>Bubbles AI</h1>
-    </div>
-
-    <nav id="tabs">
-      <button class="tab-btn active" data-tab="chats"><span class="nav-icon" data-icon="chat"></span><span class="nav-label">Chats</span></button>
-      <button class="tab-btn" data-tab="brain"><span class="nav-icon" data-icon="brain"></span><span class="nav-label">AI Brain</span></button>
-      <button class="tab-btn" data-tab="tools"><span class="nav-icon" data-icon="tools"></span><span class="nav-label">Tools</span></button>
-      <button class="tab-btn" data-tab="images"><span class="nav-icon" data-icon="image"></span><span class="nav-label">Images</span></button>
-      <button class="tab-btn" data-tab="code"><span class="nav-icon" data-icon="code"></span><span class="nav-label">Code</span></button>
-      <button class="tab-btn" data-tab="terminal"><span class="nav-icon" data-icon="terminal"></span><span class="nav-label">Terminal</span></button>
-      <button class="tab-btn" data-tab="api"><span class="nav-icon" data-icon="plug"></span><span class="nav-label">API</span></button>
-      <button class="tab-btn" data-tab="settings"><span class="nav-icon" data-icon="settings"></span><span class="nav-label">Settings</span></button>
-    </nav>
-
-    <!-- CHATS TAB -->
-    <div class="tab-panel active" id="tab-chats">
-      <div class="row">
-        <button id="new-chat-btn" class="btn primary"><span data-icon="plus" data-icon-size="sm"></span> New Chat</button>
-        <button id="save-chat-btn" class="btn secondary"><span data-icon="save" data-icon-size="sm"></span> Save</button>
-      </div>
-      <div class="search-wrap">
-        <span data-icon="search" data-icon-size="sm" class="search-icon"></span>
-        <input type="text" id="session-search" class="search-input" placeholder="Search chats…">
-      </div>
-      <p class="muted small-heading">Saved chats</p>
-      <div id="sessions-list"></div>
-      <button id="delete-session-btn" class="btn secondary full"><span data-icon="trash" data-icon-size="sm"></span> Delete selected</button>
-    </div>
-
-    <!-- AI BRAIN TAB -->
-    <div class="tab-panel" id="tab-brain">
-      <label class="field-label">Active provider</label>
-      <select id="provider-select"></select>
-
-      <label class="field-label">Fallback order (comma-separated)</label>
-      <input type="text" id="fallback-order-input">
-
-      <div class="section-heading">Cloud API keys</div>
-      <div class="key-row"><label class="field-label">OpenAI</label>
-        <div class="key-input-wrap"><input type="password" id="key-openai"><button class="eye-btn" data-target="key-openai"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
-      <div class="key-row"><label class="field-label">Anthropic</label>
-        <div class="key-input-wrap"><input type="password" id="key-anthropic"><button class="eye-btn" data-target="key-anthropic"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
-      <div class="key-row"><label class="field-label">DeepSeek</label>
-        <div class="key-input-wrap"><input type="password" id="key-deepseek"><button class="eye-btn" data-target="key-deepseek"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
-      <div class="key-row"><label class="field-label">Kimi</label>
-        <div class="key-input-wrap"><input type="password" id="key-kimi"><button class="eye-btn" data-target="key-kimi"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
-
-      <div class="section-heading">Amazon Bedrock / Nova</div>
-      <div class="key-row"><label class="field-label">AWS Access Key ID</label>
-        <div class="key-input-wrap"><input type="password" id="aws-access-key"><button class="eye-btn" data-target="aws-access-key"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
-      <div class="key-row"><label class="field-label">AWS Secret Access Key</label>
-        <div class="key-input-wrap"><input type="password" id="aws-secret-key"><button class="eye-btn" data-target="aws-secret-key"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
-      <label class="field-label">AWS Region</label>
-      <input type="text" id="aws-region">
-      <label class="field-label">Nova model ID</label>
-      <input type="text" id="nova-model">
-
-      <div class="section-heading">Google AI (Gemini)</div>
-      <div class="key-row"><label class="field-label">Google API key</label>
-        <div class="key-input-wrap"><input type="password" id="key-google"><button class="eye-btn" data-target="key-google"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
-      <label class="field-label">Model</label>
-      <input type="text" id="google-model">
-
-      <div class="section-heading">OmniRoute (local gateway)</div>
-      <label class="field-label">Base URL</label>
-      <input type="text" id="omniroute-url">
-      <div class="key-row"><label class="field-label">API key (optional)</label>
-        <div class="key-input-wrap"><input type="password" id="omniroute-key"><button class="eye-btn" data-target="omniroute-key"><span data-icon="eye" data-icon-size="sm"></span></button></div></div>
-      <button id="omniroute-test-btn" class="btn secondary full">Test Connection</button>
-      <div id="omniroute-test-result" class="test-result"></div>
-
-      <div class="section-heading">Ollama (local server)</div>
-      <label class="field-label">Base URL</label>
-      <input type="text" id="ollama-url">
-      <label class="field-label">Model name</label>
-      <input type="text" id="ollama-model">
-      <button id="ollama-test-btn" class="btn secondary full">Test Connection</button>
-      <div id="ollama-test-result" class="test-result"></div>
-
-      <div class="section-heading">Offline model file (.gguf)</div>
-      <p class="muted">Paste the full path to a model you downloaded, e.g. from Hugging Face.</p>
-      <input type="text" id="local-model-path" placeholder="/home/you/models/model.gguf">
-
-      <div class="section-heading">Workspace folder</div>
-      <p class="muted">Files, terminal commands, and git tools all run inside this folder.</p>
-      <input type="text" id="workspace-dir" placeholder="/home/you/projects/my-project">
-
-      <button id="save-brain-btn" class="btn primary full"><span data-icon="save" data-icon-size="sm"></span> Save AI Brain Settings</button>
-
-      <div class="section-heading">Agent mode</div>
-      <select id="agent-mode-select"></select>
-    </div>
-
-    <!-- TOOLS TAB -->
-    <div class="tab-panel" id="tab-tools">
-      <p class="muted">Let the AI use these tools while answering:</p>
-      <div id="tools-list"></div>
-    </div>
-
-    <!-- TERMINAL TAB -->
-    <div class="tab-panel" id="tab-terminal">
-      <p class="muted">Run commands directly in the workspace folder, and watch what the agent itself is doing.</p>
-      <div id="terminal-output"></div>
-      <div class="row">
-        <input type="text" id="terminal-input" placeholder="Type a command…">
-        <button id="terminal-run-btn" class="btn primary">Run</button>
-      </div>
-      <label class="checkbox-row"><input type="checkbox" id="terminal-follow-agent" checked> Show agent activity</label>
-    </div>
-
-    <!-- API TAB -->
-    <div class="tab-panel" id="tab-api">
-      <p class="muted">
-        Bubbles AI runs a local OpenAI-compatible endpoint the whole time it's open,
-        so other tools (VS Code extensions, scripts, curl, etc.) can talk to it.
-      </p>
-      <label class="field-label">Endpoint</label>
-      <input type="text" id="api-endpoint" readonly>
-      <button id="copy-endpoint-btn" class="btn secondary full">Copy endpoint URL</button>
-      <p class="muted small-note">
-        In VS Code, point a custom "OpenAI base URL" setting at the endpoint above
-        (any API key text works).
-      </p>
-    </div>
-
-    <!-- SETTINGS TAB -->
-    <div class="tab-panel" id="tab-settings">
-      <div class="section-heading" style="margin-top:6px;">Appearance</div>
-      <label class="field-label">Accent color</label>
-      <div class="row">
-        <input type="color" id="accent-color-picker" value="#8b5cf6">
-        <button id="accent-reset-btn" class="btn secondary">Reset</button>
-      </div>
-
-      <div class="section-heading">App icon</div>
-      <div class="row" id="icon-preview-row">
-        <img id="icon-preview" src="/logo.png" alt="icon">
-        <label class="btn secondary" for="icon-upload-input">Choose image…</label>
-        <input type="file" id="icon-upload-input" accept="image/*" style="display:none;">
-      </div>
-      <button id="icon-reset-btn" class="btn secondary full">Reset to default logo</button>
-    </div>
-  </aside>
-
-  <main id="main">
-    <div id="view-chat">
-      <div id="chat-toolbar">
-        <span id="status-pill" class="pill"><span class="status-dot"></span>Offline</span>
-      </div>
-      <div id="chat-scroll">
-        <div id="chat-messages">
-          <div class="empty-state"><span data-icon="bubble" data-icon-size="lg"></span> Say hello to start chatting with Bubbles AI</div>
-        </div>
-      </div>
-      <div id="attachments-row"></div>
-      <div id="input-row">
-        <button id="attach-btn" class="btn secondary" title="Attach a file"><span data-icon="paperclip"></span></button>
-        <button id="sync-btn" class="btn secondary" title="Pull in context from another chat"><span data-icon="link"></span></button>
-        <textarea id="input-box" placeholder="Message Bubbles AI…" rows="2"></textarea>
-        <button id="send-btn" class="btn primary">Send <span data-icon="send" data-icon-size="sm"></span></button>
-        <input type="file" id="file-input" style="display:none;" multiple>
-      </div>
-    </div>
-
-    <div id="view-images">
-      <div id="image-canvas-panel">
-        <div id="image-canvas-wrap">
-          <img id="image-preview" draggable="false" style="display:none;">
-          <div id="image-crop-box"></div>
-          <div class="empty-state" id="image-empty-state"><span data-icon="image" data-icon-size="lg"></span> Open an image to start editing</div>
-        </div>
-      </div>
-      <div id="image-controls-panel">
-        <button id="image-choose-btn" class="btn primary full"><span data-icon="folderOpen" data-icon-size="sm"></span> Open Image</button>
-        <input type="file" id="image-file-input" accept="image/*" style="display:none;">
-        <div id="image-dims" class="muted" style="margin:8px 0;"></div>
-
-        <div class="section-heading">Resize</div>
-        <div class="row">
-          <input type="number" id="image-resize-w" placeholder="Width">
-          <input type="number" id="image-resize-h" placeholder="Height">
-        </div>
-        <label class="checkbox-row"><input type="checkbox" id="image-keep-aspect" checked> Keep aspect ratio</label>
-        <button id="image-resize-btn" class="btn secondary full">Apply Resize</button>
-
-        <div class="section-heading">Rotate / Flip</div>
-        <div class="row">
-          <button id="image-rotate-left" class="btn secondary"><span data-icon="rotateCcw" data-icon-size="sm"></span> 90°</button>
-          <button id="image-rotate-right" class="btn secondary"><span data-icon="rotateCw" data-icon-size="sm"></span> 90°</button>
-        </div>
-        <div class="row">
-          <button id="image-flip-h" class="btn secondary"><span data-icon="flipH" data-icon-size="sm"></span> Flip H</button>
-          <button id="image-flip-v" class="btn secondary"><span data-icon="flipV" data-icon-size="sm"></span> Flip V</button>
-        </div>
-
-        <div class="section-heading">Crop</div>
-        <p class="muted small-note">Drag on the image to select an area, then apply.</p>
-        <button id="image-crop-btn" class="btn secondary full"><span data-icon="crop" data-icon-size="sm"></span> Apply Crop</button>
-
-        <div class="section-heading">Adjust</div>
-        <label class="field-label">Brightness</label>
-        <input type="range" id="image-brightness" min="0.2" max="2" step="0.05" value="1">
-        <label class="field-label">Contrast</label>
-        <input type="range" id="image-contrast" min="0.2" max="2" step="0.05" value="1">
-        <label class="field-label">Saturation</label>
-        <input type="range" id="image-saturation" min="0" max="2" step="0.05" value="1">
-        <div class="row">
-          <button id="image-grayscale-btn" class="btn secondary full"><span data-icon="droplet" data-icon-size="sm"></span> Grayscale</button>
-          <button id="image-sharpen-btn" class="btn secondary full"><span data-icon="sparkle" data-icon-size="sm"></span> Sharpen</button>
-        </div>
-
-        <div class="section-heading">Watermark</div>
-        <input type="text" id="image-watermark-text" placeholder="Text…">
-        <select id="image-watermark-position">
-          <option value="bottom-right">Bottom right</option>
-          <option value="bottom-left">Bottom left</option>
-          <option value="top-right">Top right</option>
-          <option value="top-left">Top left</option>
-          <option value="center">Center</option>
-        </select>
-        <button id="image-watermark-btn" class="btn secondary full"><span data-icon="type" data-icon-size="sm"></span> Add Watermark</button>
-
-        <div class="section-heading">Export</div>
-        <div class="row">
-          <button id="image-reset-btn" class="btn secondary"><span data-icon="rotateCcw" data-icon-size="sm"></span> Reset</button>
-          <button id="image-download-btn" class="btn primary"><span data-icon="download" data-icon-size="sm"></span> Download</button>
+  <!-- 1. Top App Bar (Gmail / Google Workspace Header) -->
+  <header id="top-app-bar">
+    <div class="header-left">
+      <button id="btn-sidebar-toggle" class="icon-btn" title="Toggle sidebar">
+        <span data-icon="menu"></span>
+      </button>
+      <div class="brand-lockup" id="brand-home-btn">
+        <img src="/logo.png" alt="Bubbles AI" class="brand-logo" id="header-logo">
+        <div class="brand-title">
+          <span>Bubbles</span><span class="ai-badge">AI</span>
+          <span class="brand-subtitle">Workspace</span>
         </div>
       </div>
     </div>
 
-    <div id="view-code">
-      <div id="code-file-panel">
-        <div class="row">
-          <button id="code-refresh-btn" class="btn secondary full"><span data-icon="folderOpen" data-icon-size="sm"></span> Refresh</button>
-        </div>
-        <div class="search-wrap">
-          <span data-icon="search" data-icon-size="sm" class="search-icon"></span>
-          <input type="text" id="code-file-search" class="search-input" placeholder="Filter files…">
-        </div>
-        <div id="code-file-list"></div>
-      </div>
-      <div id="code-editor-panel">
-        <div id="code-editor-toolbar">
-          <input type="text" id="code-current-path" placeholder="new-file.py">
-          <button id="code-new-btn" class="btn secondary" title="New file"><span data-icon="filePlus" data-icon-size="sm"></span></button>
-          <button id="code-ask-ai-btn" class="btn secondary" title="Ask the AI about this file"><span data-icon="brain" data-icon-size="sm"></span></button>
-          <button id="code-save-btn" class="btn primary"><span data-icon="save" data-icon-size="sm"></span> Save</button>
-        </div>
-        <textarea id="code-editor" spellcheck="false" placeholder="Pick a file on the left, or type a path above and click the new-file button…"></textarea>
+    <div class="header-center">
+      <div class="gmail-search-bar" id="header-search-bar">
+        <span class="search-icon-btn" data-icon="search"></span>
+        <input type="text" id="header-search-input" class="gmail-search-input" placeholder="Search chats, tools, files, or commands…">
+        <button id="search-clear-btn" class="search-clear-btn" title="Clear search">
+          <span data-icon="close" data-icon-size="sm"></span>
+        </button>
       </div>
     </div>
-  </main>
 
+    <div class="header-right">
+      <!-- Desktop Install Quick Button -->
+      <button class="icon-btn" id="header-install-btn" title="Install Desktop App (Windows / Linux)">
+        <span data-icon="download"></span>
+      </button>
+
+      <!-- Google Brain Status Indicator -->
+      <button class="brain-status-chip" id="header-brain-chip" title="Click to view AI Brain & model status">
+        <span class="status-dot-emerald"></span>
+        <span id="header-brain-label">Google AI Active</span>
+      </button>
+
+      <!-- Quick Accent Palette -->
+      <button id="header-palette-btn" class="icon-btn" title="Customize accent color">
+        <span data-icon="palette"></span>
+      </button>
+
+      <!-- Light / Dark Mode Toggle -->
+      <button id="header-theme-btn" class="icon-btn" title="Toggle theme">
+        <span data-icon="moon" id="theme-btn-icon"></span>
+      </button>
+
+      <!-- User Profile Avatar -->
+      <button id="header-avatar-btn" class="user-avatar-btn" title="Google Account">
+        C
+      </button>
+    </div>
+  </header>
+
+  <!-- Accent Palette Popover -->
+  <div id="palette-popover" class="popover-menu">
+    <div style="font-size:13px; font-weight:600; margin-bottom:8px; color:var(--text-main);">Choose Accent Color</div>
+    <div class="accent-swatches-row" id="quick-swatches">
+      <div class="swatch-circle" style="background:#1a73e8;" data-color="#1a73e8" title="Google Blue"></div>
+      <div class="swatch-circle" style="background:#7c3aed;" data-color="#7c3aed" title="Gemini Purple"></div>
+      <div class="swatch-circle" style="background:#d93025;" data-color="#d93025" title="Gmail Red"></div>
+      <div class="swatch-circle" style="background:#059669;" data-color="#059669" title="Google Green"></div>
+      <div class="swatch-circle" style="background:#ea580c;" data-color="#ea580c" title="Sunset Amber"></div>
+      <div class="swatch-circle" style="background:#db2777;" data-color="#db2777" title="Rose"></div>
+    </div>
+    <div style="margin-top:12px; display:flex; align-items:center; justify-content:space-between;">
+      <span style="font-size:12px; color:var(--text-muted);">Custom</span>
+      <input type="color" id="quick-color-input" value="#1a73e8" style="cursor:pointer; width:32px; height:24px; border:none; background:transparent;">
+    </div>
+  </div>
+
+  <!-- User Profile Popover -->
+  <div id="profile-popover" class="profile-popover">
+    <div style="width:52px; height:52px; border-radius:50%; background:var(--avatar-bg); color:var(--avatar-fg); font-size:22px; font-weight:600; display:flex; align-items:center; justify-content:center; margin:0 auto 10px auto;">C</div>
+    <div style="font-size:15px; font-weight:600; color:var(--text-main);">Cedric Allan</div>
+    <div style="font-size:12px; color:var(--text-muted); margin-bottom:12px;">cedricallan16@gmail.com</div>
+    <div style="background:var(--bg-surface-subtle); padding:10px; border-radius:10px; font-size:12px; text-align:left; color:var(--text-main); margin-bottom:14px; border:1px solid var(--border-subtle);">
+      <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+        <span style="color:var(--text-muted);">AI Brain:</span>
+        <span style="font-weight:600; color:#10b981;">Google AI</span>
+      </div>
+      <div style="display:flex; justify-content:space-between;">
+        <span style="color:var(--text-muted);">Model:</span>
+        <span id="profile-model-name" style="font-weight:500;">Gemma 4</span>
+      </div>
+    </div>
+    <button id="profile-settings-btn" class="btn secondary full">Workspace Settings</button>
+  </div>
+
+  <!-- 2. Workspace Body: Left Rail + Main Card -->
+  <div id="workspace-body">
+
+    <!-- Left Rail / Sidebar -->
+    <aside id="sidebar">
+      <!-- Gmail Signature Floating Compose Button -->
+      <div class="compose-wrap">
+        <button id="new-chat-btn" class="compose-btn">
+          <span data-icon="plus" class="compose-plus-icon"></span>
+          <span class="compose-label">New Chat</span>
+        </button>
+      </div>
+
+      <!-- Navigation Tabs (Gmail Folders) -->
+      <nav id="nav-menu">
+        <button class="nav-item-btn active" data-tab="chats">
+          <div class="nav-left-part">
+            <span class="nav-icon" data-icon="chat"></span>
+            <span class="nav-label">Chats</span>
+          </div>
+          <span class="nav-badge" id="badge-chat-count">0</span>
+        </button>
+
+        <button class="nav-item-btn" data-tab="brain">
+          <div class="nav-left-part">
+            <span class="nav-icon" data-icon="brain"></span>
+            <span class="nav-label">AI Brain</span>
+          </div>
+          <span class="nav-badge" style="color:#10b981; font-weight:600;">Models</span>
+        </button>
+
+        <button class="nav-item-btn" data-tab="tools">
+          <div class="nav-left-part">
+            <span class="nav-icon" data-icon="tools"></span>
+            <span class="nav-label">Tools</span>
+          </div>
+          <span class="nav-badge">11</span>
+        </button>
+
+        <button class="nav-item-btn" data-tab="images">
+          <div class="nav-left-part">
+            <span class="nav-icon" data-icon="image"></span>
+            <span class="nav-label">Images</span>
+          </div>
+        </button>
+
+        <button class="nav-item-btn" data-tab="code">
+          <div class="nav-left-part">
+            <span class="nav-icon" data-icon="code"></span>
+            <span class="nav-label">Code</span>
+          </div>
+        </button>
+
+        <button class="nav-item-btn" data-tab="webview">
+          <div class="nav-left-part">
+            <span class="nav-icon" data-icon="globe"></span>
+            <span class="nav-label">Web View</span>
+          </div>
+        </button>
+
+        <button class="nav-item-btn" data-tab="terminal">
+          <div class="nav-left-part">
+            <span class="nav-icon" data-icon="terminal"></span>
+            <span class="nav-label">Terminal</span>
+          </div>
+        </button>
+
+        <button class="nav-item-btn" data-tab="desktop">
+          <div class="nav-left-part">
+            <span class="nav-icon" data-icon="download"></span>
+            <span class="nav-label">Desktop App</span>
+          </div>
+          <span class="nav-badge" style="color:var(--accent);">Win/Linux</span>
+        </button>
+
+        <button class="nav-item-btn" data-tab="api">
+          <div class="nav-left-part">
+            <span class="nav-icon" data-icon="plug"></span>
+            <span class="nav-label">API</span>
+          </div>
+        </button>
+
+        <button class="nav-item-btn" data-tab="settings">
+          <div class="nav-left-part">
+            <span class="nav-icon" data-icon="settings"></span>
+            <span class="nav-label">Settings</span>
+          </div>
+        </button>
+      </nav>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Saved Chats List (Gmail inbox style) -->
+      <div id="sidebar-chat-panel">
+        <div class="chat-panel-header">
+          <span>Saved Conversations</span>
+          <button id="delete-session-btn" class="icon-btn" style="width:24px; height:24px;" title="Delete selected chat">
+            <span data-icon="trash" data-icon-size="sm"></span>
+          </button>
+        </div>
+        <div id="sessions-list" class="chat-sessions-list"></div>
+      </div>
+    </aside>
+
+    <!-- 3. Main Stage: Gmail Canvas Card -->
+    <main id="main">
+
+      <!-- ================= VIEW 1: CHATS ================= -->
+      <div id="view-chat" class="stage-view">
+        <div class="view-top-toolbar">
+          <div class="toolbar-left">
+            <div class="agent-mode-select-wrap">
+              <span data-icon="brain" data-icon-size="sm" style="color:var(--accent);"></span>
+              <select id="agent-mode-select" title="Active AI Agent Mode">
+                <option value="auto">Auto (Intelligent Routing)</option>
+                <option value="coding">Coding Agent</option>
+                <option value="debug">Debug Agent</option>
+                <option value="planning">Planning Agent</option>
+                <option value="research">Research Agent</option>
+              </select>
+            </div>
+            <span id="active-model-pill" class="brain-status-chip" style="font-size:12px; padding:4px 10px;">
+              <span class="status-dot-emerald"></span>
+              Google AI: Gemma 4
+            </span>
+          </div>
+
+          <div class="toolbar-right">
+            <button id="save-chat-btn" class="btn secondary" title="Save current chat">
+              <span data-icon="save" data-icon-size="sm"></span> Save Chat
+            </button>
+            <button id="sync-btn" class="btn secondary" title="Pull in context from another conversation">
+              <span data-icon="link" data-icon-size="sm"></span> Sync Context
+            </button>
+            <button id="clear-chat-btn" class="btn secondary" title="Clear current chat">
+              <span data-icon="trash" data-icon-size="sm"></span> Clear
+            </button>
+          </div>
+        </div>
+
+        <div id="chat-scroll">
+          <div id="chat-messages">
+            <div class="empty-state">
+              <div class="empty-state-icon">
+                <span data-icon="brain" data-icon-size="lg"></span>
+              </div>
+              <div class="empty-state-title">Bubbles AI Workspace</div>
+              <div class="empty-state-subtitle">
+                Powered by Google AI. Chat, run code, edit files, execute commands, or manipulate images.
+              </div>
+              <div class="quick-prompts-row">
+                <button class="prompt-chip" data-prompt="Help me debug a Python traceback">🐞 Debug Python Code</button>
+                <button class="prompt-chip" data-prompt="Design architecture for a modern web app">📐 Plan Web Architecture</button>
+                <button class="prompt-chip" data-prompt="Write a clean TypeScript REST API endpoint">💻 Write TypeScript API</button>
+                <button class="prompt-chip" data-prompt="What files are in this project workspace?">📂 Explore Workspace</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="attachments-row"></div>
+
+        <div id="input-container">
+          <div class="gmail-compose-dock">
+            <div class="dock-actions">
+              <button id="attach-btn" class="dock-btn" title="Attach file or image">
+                <span data-icon="paperclip"></span>
+              </button>
+            </div>
+            <textarea id="input-box" placeholder="Ask Bubbles AI anything, or type /code, /debug, /plan…" rows="1"></textarea>
+            <div class="dock-actions">
+              <button id="send-btn" class="dock-send-btn" title="Send message (Enter)">
+                <span data-icon="send" data-icon-size="sm"></span>
+              </button>
+            </div>
+          </div>
+          <input type="file" id="file-input" style="display:none;" multiple>
+        </div>
+      </div>
+
+      <!-- ================= VIEW 2: AI BRAIN ================= -->
+      <div id="view-brain" class="stage-view page-view-wrap" style="display:none;">
+        
+        <!-- Model Status & Health Matrix Section -->
+        <div class="settings-card" style="border-left: 4px solid #10b981;">
+          <div class="card-title">
+            <span>Model Health & Status Matrix</span>
+            <button id="refresh-models-btn" class="btn secondary" style="font-size:12px; padding:4px 10px;">
+              <span data-icon="rotateCw" data-icon-size="sm"></span> Refresh Status
+            </button>
+          </div>
+          <p class="card-desc">
+            Live operational status, context window sizes, latency benchmarks, and connectivity for each supported model.
+          </p>
+
+          <div id="models-matrix-grid" class="models-status-matrix">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Primary Google AI Card -->
+        <div class="settings-card">
+          <div class="card-title">
+            <span>Google AI Engine Configuration</span>
+            <span class="brain-status-chip" style="font-size:12px; padding:3px 8px;">
+              <span class="status-dot-emerald"></span> Connected
+            </span>
+          </div>
+          <p class="card-desc">
+            Configure default model parameters and keys.
+          </p>
+
+          <div class="field-group">
+            <label class="field-label">Active Provider</label>
+            <select id="provider-select" class="text-input"></select>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Default Google Model</label>
+            <select id="google-model-select" class="text-input">
+              <option value="gemma-4-26b-a4b-it">Google Gemma 4 (26B Reasoning - Built-in Default)</option>
+              <option value="gemini-3.8-flash">Gemini 3.8 Flash (High Performance)</option>
+              <option value="gemini-flash-latest">Gemini Flash Latest</option>
+              <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro (Complex Reasoning)</option>
+              <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+            </select>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Google / Gemini API Key</label>
+            <div class="key-input-wrap">
+              <input type="password" id="key-google" class="text-input" placeholder="AIzaSy... (Pre-configured from environment)">
+              <button class="eye-btn" data-target="key-google"><span data-icon="eye" data-icon-size="sm"></span></button>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <button id="google-test-btn" class="btn primary">
+              <span data-icon="check" data-icon-size="sm"></span> Test Google Connection
+            </button>
+          </div>
+          <div id="google-test-result" class="test-result-box"></div>
+        </div>
+
+        <!-- Fallback Providers Card -->
+        <div class="settings-card">
+          <div class="card-title">Multi-Provider Fallback Chain</div>
+          <p class="card-desc">If the primary provider encounters rate limits or errors, Bubbles AI automatically tries these providers in order.</p>
+
+          <div class="field-group">
+            <label class="field-label">Fallback Order (comma-separated)</label>
+            <input type="text" id="fallback-order-input" class="text-input" placeholder="google,demo,openai,anthropic,deepseek">
+          </div>
+        </div>
+
+        <!-- Other Cloud Keys Card -->
+        <div class="settings-card">
+          <div class="card-title">Other Cloud Provider Keys</div>
+          <p class="card-desc">Optional alternative providers you can use alongside Google AI.</p>
+
+          <div class="field-group">
+            <label class="field-label">OpenAI</label>
+            <div class="key-input-wrap">
+              <input type="password" id="key-openai" class="text-input" placeholder="sk-...">
+              <button class="eye-btn" data-target="key-openai"><span data-icon="eye" data-icon-size="sm"></span></button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Anthropic</label>
+            <div class="key-input-wrap">
+              <input type="password" id="key-anthropic" class="text-input" placeholder="sk-ant-...">
+              <button class="eye-btn" data-target="key-anthropic"><span data-icon="eye" data-icon-size="sm"></span></button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">DeepSeek</label>
+            <div class="key-input-wrap">
+              <input type="password" id="key-deepseek" class="text-input" placeholder="sk-...">
+              <button class="eye-btn" data-target="key-deepseek"><span data-icon="eye" data-icon-size="sm"></span></button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Kimi (Moonshot)</label>
+            <div class="key-input-wrap">
+              <input type="password" id="key-kimi" class="text-input">
+              <button class="eye-btn" data-target="key-kimi"><span data-icon="eye" data-icon-size="sm"></span></button>
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Ollama (Local Server)</label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="ollama-url" class="text-input" placeholder="http://localhost:11434/v1">
+              <input type="text" id="ollama-model" class="text-input" placeholder="llama3" style="width:140px;">
+              <button id="ollama-test-btn" class="btn secondary">Test</button>
+            </div>
+            <div id="ollama-test-result" class="test-result-box"></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">OmniRoute (Local Gateway)</label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="omniroute-url" class="text-input" placeholder="http://localhost:20128/v1">
+              <button id="omniroute-test-btn" class="btn secondary">Test</button>
+            </div>
+            <div id="omniroute-test-result" class="test-result-box"></div>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">Workspace Folder</label>
+            <input type="text" id="workspace-dir" class="text-input" placeholder="/app/applet">
+          </div>
+
+          <button id="save-brain-btn" class="btn primary" style="margin-top:10px;">
+            <span data-icon="save" data-icon-size="sm"></span> Save AI Brain Settings
+          </button>
+        </div>
+      </div>
+
+      <!-- ================= VIEW 3: DESKTOP APP & INSTALL ================= -->
+      <div id="view-desktop" class="stage-view page-view-wrap" style="display:none;">
+        <div class="settings-card" style="border-left: 4px solid var(--accent);">
+          <div class="card-title">
+            <span>Desktop App Installation (Windows & Linux)</span>
+            <span class="brain-status-chip" style="font-size:12px; padding:3px 8px;">
+              Cross-Platform Ready
+            </span>
+          </div>
+          <p class="card-desc">
+            Run Bubbles AI as a dedicated standalone desktop application with its own window, taskbar icon, and high performance.
+          </p>
+
+          <div class="desktop-os-grid">
+            <!-- 1. Universal PWA 1-Click Install -->
+            <div class="desktop-os-card">
+              <div class="desktop-os-header">
+                <div class="desktop-os-icon">⚡</div>
+                <div>
+                  <div class="desktop-os-title">1-Click Browser App (PWA)</div>
+                  <div style="font-size:12px; color:var(--text-muted);">Windows 10/11, Ubuntu, Fedora, Debian</div>
+                </div>
+              </div>
+              <p class="desktop-os-desc">
+                Installs directly into your operating system via Chrome, Edge, or Brave. Creates a native desktop shortcut and start menu entry.
+              </p>
+              <button id="btn-trigger-pwa-install" class="btn primary full">
+                <span data-icon="download" data-icon-size="sm"></span> Install as Desktop App
+              </button>
+              <ol class="desktop-steps-list">
+                <li>Click the button above or the install icon in your browser address bar.</li>
+                <li>Confirm "Install Bubbles AI".</li>
+                <li>App launches in a standalone native desktop frame!</li>
+              </ol>
+            </div>
+
+            <!-- 2. Windows Native Package -->
+            <div class="desktop-os-card">
+              <div class="desktop-os-header">
+                <div class="desktop-os-icon">🪟</div>
+                <div>
+                  <div class="desktop-os-title">Windows Native Package</div>
+                  <div style="font-size:12px; color:var(--text-muted);">Windows 10 / 11 (Batch Launcher)</div>
+                </div>
+              </div>
+              <p class="desktop-os-desc">
+                Launches Bubbles AI in standalone window mode with its own isolated profile without URL bars or browser tabs.
+              </p>
+              <a href="/api/desktop/files/launch-windows.bat" download="launch-bubbles-ai.bat" class="btn secondary full" style="text-decoration:none;">
+                <span data-icon="download" data-icon-size="sm"></span> Download Windows Launcher (.bat)
+              </a>
+              <ol class="desktop-steps-list">
+                <li>Download <code>launch-bubbles-ai.bat</code>.</li>
+                <li>Move it to your Desktop or pin it to your Taskbar.</li>
+                <li>Double click to launch Bubbles AI instantly in desktop mode!</li>
+              </ol>
+            </div>
+
+            <!-- 3. Linux Desktop Package -->
+            <div class="desktop-os-card">
+              <div class="desktop-os-header">
+                <div class="desktop-os-icon">🐧</div>
+                <div>
+                  <div class="desktop-os-title">Linux Desktop Package</div>
+                  <div style="font-size:12px; color:var(--text-muted);">GNOME, KDE, XFCE, Ubuntu, Arch</div>
+                </div>
+              </div>
+              <p class="desktop-os-desc">
+                Installs a system <code>.desktop</code> entry and 512x512 mascot icon into <code>~/.local/share/applications</code>.
+              </p>
+              <div style="display:flex; gap:8px;">
+                <a href="/api/desktop/files/install-linux.sh" download="install-linux.sh" class="btn secondary" style="flex:1; text-decoration:none; font-size:12px;">
+                  Download .sh
+                </a>
+                <a href="/api/desktop/files/bubbles-ai.desktop" download="bubbles-ai.desktop" class="btn secondary" style="flex:1; text-decoration:none; font-size:12px;">
+                  Download .desktop
+                </a>
+              </div>
+              <ol class="desktop-steps-list">
+                <li>Run: <code>chmod +x install-linux.sh && ./install-linux.sh</code></li>
+                <li>Bubbles AI will appear in your application menu with the planetary icon!</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= VIEW 4: WEB VIEW / BROWSER PREVIEW ================= -->
+      <div id="view-webview" class="stage-view" style="display:none;">
+        <div class="webview-address-bar">
+          <button id="webview-back-btn" class="icon-btn" title="Back"><span data-icon="rotateCcw" data-icon-size="sm"></span></button>
+          <input type="text" id="webview-url-input" class="webview-url-input" value="https://example.com" placeholder="Type a URL or file to preview…">
+          <button id="webview-go-btn" class="btn primary" style="height:32px; padding:0 12px; font-size:12.5px;">Go</button>
+          <button id="webview-external-btn" class="icon-btn" title="Open in new tab"><span data-icon="link" data-icon-size="sm"></span></button>
+        </div>
+        <div class="webview-frame-wrap">
+          <iframe id="webview-frame" class="webview-iframe" src="about:blank" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+        </div>
+      </div>
+
+      <!-- ================= VIEW 5: TOOLS ================= -->
+      <div id="view-tools" class="stage-view page-view-wrap" style="display:none;">
+        <div class="settings-card">
+          <div class="card-title">Agent Tools Registry</div>
+          <p class="card-desc">Enable or disable tools that Bubbles AI agents can call during conversations.</p>
+          <div id="tools-list" class="tools-grid"></div>
+        </div>
+      </div>
+
+      <!-- ================= VIEW 6: IMAGES ================= -->
+      <div id="view-images" class="stage-view" style="display:none;">
+        <div id="image-canvas-panel">
+          <div id="image-canvas-wrap">
+            <img id="image-preview" draggable="false" style="display:none;">
+            <div id="image-crop-box"></div>
+            <div class="empty-state" id="image-empty-state">
+              <div class="empty-state-icon"><span data-icon="image" data-icon-size="lg"></span></div>
+              <div class="empty-state-title">Image Studio</div>
+              <div class="empty-state-subtitle">Open an image to edit with AI tools, resize, crop, filter, or watermark.</div>
+            </div>
+          </div>
+        </div>
+        <div id="image-controls-panel">
+          <button id="image-choose-btn" class="btn primary full">
+            <span data-icon="folderOpen" data-icon-size="sm"></span> Open Image
+          </button>
+          <input type="file" id="image-file-input" accept="image/*" style="display:none;">
+          <div id="image-dims" style="font-size:12px; color:var(--text-muted); font-variant-numeric:tabular-nums;"></div>
+
+          <div class="field-label" style="font-weight:600; margin-top:8px;">Resize</div>
+          <div style="display:flex; gap:8px;">
+            <input type="number" id="image-resize-w" class="text-input" placeholder="W">
+            <input type="number" id="image-resize-h" class="text-input" placeholder="H">
+          </div>
+          <button id="image-resize-btn" class="btn secondary full" style="margin-top:6px;">Apply Resize</button>
+
+          <div class="field-label" style="font-weight:600; margin-top:8px;">Rotate & Flip</div>
+          <div style="display:flex; gap:6px;">
+            <button id="image-rotate-left" class="btn secondary" style="flex:1;"><span data-icon="rotateCcw" data-icon-size="sm"></span> 90°</button>
+            <button id="image-rotate-right" class="btn secondary" style="flex:1;"><span data-icon="rotateCw" data-icon-size="sm"></span> 90°</button>
+          </div>
+          <div style="display:flex; gap:6px; margin-top:6px;">
+            <button id="image-flip-h" class="btn secondary" style="flex:1;"><span data-icon="flipH" data-icon-size="sm"></span> Flip H</button>
+            <button id="image-flip-v" class="btn secondary" style="flex:1;"><span data-icon="flipV" data-icon-size="sm"></span> Flip V</button>
+          </div>
+
+          <div class="field-label" style="font-weight:600; margin-top:8px;">Crop</div>
+          <button id="image-crop-btn" class="btn secondary full"><span data-icon="crop" data-icon-size="sm"></span> Apply Selection Crop</button>
+
+          <div class="field-label" style="font-weight:600; margin-top:8px;">Filters</div>
+          <div style="display:flex; gap:6px;">
+            <button id="image-grayscale-btn" class="btn secondary" style="flex:1;"><span data-icon="droplet" data-icon-size="sm"></span> Grayscale</button>
+            <button id="image-sharpen-btn" class="btn secondary" style="flex:1;"><span data-icon="sparkle" data-icon-size="sm"></span> Sharpen</button>
+          </div>
+
+          <div class="field-label" style="font-weight:600; margin-top:8px;">Watermark</div>
+          <input type="text" id="image-watermark-text" class="text-input" placeholder="Watermark text…">
+          <select id="image-watermark-position" class="text-input" style="margin-top:6px;">
+            <option value="bottom-right">Bottom right</option>
+            <option value="bottom-left">Bottom left</option>
+            <option value="top-right">Top right</option>
+            <option value="center">Center</option>
+          </select>
+          <button id="image-watermark-btn" class="btn secondary full" style="margin-top:6px;">Add Watermark</button>
+
+          <div class="field-label" style="font-weight:600; margin-top:12px;">Export</div>
+          <div style="display:flex; gap:6px;">
+            <button id="image-reset-btn" class="btn secondary" style="flex:1;"><span data-icon="rotateCcw" data-icon-size="sm"></span> Reset</button>
+            <button id="image-download-btn" class="btn primary" style="flex:1;"><span data-icon="download" data-icon-size="sm"></span> Download</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ================= VIEW 7: CODE ================= -->
+      <div id="view-code" class="stage-view" style="display:none;">
+        <div id="code-file-panel">
+          <button id="code-refresh-btn" class="btn secondary full">
+            <span data-icon="folderOpen" data-icon-size="sm"></span> Refresh Workspace
+          </button>
+          <input type="text" id="code-file-search" class="text-input" placeholder="Filter files…" style="height:32px; font-size:12.5px;">
+          <div id="code-file-list"></div>
+        </div>
+        <div id="code-editor-panel">
+          <div id="code-editor-toolbar">
+            <input type="text" id="code-current-path" class="text-input" placeholder="File path…" style="height:32px; font-size:13px; max-width:320px;">
+            <button id="code-new-btn" class="btn secondary" title="New file"><span data-icon="filePlus" data-icon-size="sm"></span> New</button>
+            <button id="code-ask-ai-btn" class="btn secondary" title="Ask AI about this file"><span data-icon="brain" data-icon-size="sm"></span> Ask AI</button>
+            <button id="code-preview-btn" class="btn secondary" title="Preview in Web View"><span data-icon="globe" data-icon-size="sm"></span> Web View</button>
+            <button id="code-save-btn" class="btn primary"><span data-icon="save" data-icon-size="sm"></span> Save</button>
+          </div>
+          <textarea id="code-editor" spellcheck="false" placeholder="Select a file on the left or type a new file path above…"></textarea>
+        </div>
+      </div>
+
+      <!-- ================= VIEW 8: TERMINAL ================= -->
+      <div id="view-terminal" class="stage-view page-view-wrap" style="display:none;">
+        <div class="settings-card">
+          <div class="card-title">Workspace Terminal & Activity Log</div>
+          <p class="card-desc">Execute shell commands in the workspace and track real-time agent tool executions.</p>
+
+          <div id="terminal-output"></div>
+
+          <div style="display:flex; gap:10px; margin-top:12px;">
+            <input type="text" id="terminal-input" class="text-input" placeholder="Type a shell command (e.g. ls, git status, npm test)…">
+            <button id="terminal-run-btn" class="btn primary">Run</button>
+          </div>
+          <label style="display:inline-flex; align-items:center; gap:8px; margin-top:10px; font-size:13px; color:var(--text-muted); cursor:pointer;">
+            <input type="checkbox" id="terminal-follow-agent" checked> Follow live agent activity
+          </label>
+        </div>
+      </div>
+
+      <!-- ================= VIEW 9: API ================= -->
+      <div id="view-api" class="stage-view page-view-wrap" style="display:none;">
+        <div class="settings-card">
+          <div class="card-title">OpenAI-Compatible Local Endpoint</div>
+          <p class="card-desc">
+            Bubbles AI exposes a standard <code>/v1/chat/completions</code> endpoint so you can connect it to external IDEs (VS Code, Cursor), scripts, or tools.
+          </p>
+
+          <div class="field-group">
+            <label class="field-label">API Endpoint URL</label>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="api-endpoint" class="text-input" readonly>
+              <button id="copy-endpoint-btn" class="btn secondary">Copy</button>
+            </div>
+          </div>
+
+          <p style="font-size:13px; color:var(--text-muted); line-height:1.5; margin-top:10px;">
+            In VS Code or IDE extensions, set the OpenAI Base URL to the endpoint above (any API key text works).
+          </p>
+        </div>
+      </div>
+
+      <!-- ================= VIEW 10: SETTINGS ================= -->
+      <div id="view-settings" class="stage-view page-view-wrap" style="display:none;">
+        <div class="settings-card">
+          <div class="card-title">Appearance & Theme</div>
+          <p class="card-desc">Customize the user interface styling. Light theme is enabled by default.</p>
+
+          <div class="field-label">Color Theme</div>
+          <div class="theme-options-grid">
+            <div class="theme-card-option active" id="theme-card-light" data-theme="light">
+              <span data-icon="sun" style="color:#ea580c;"></span>
+              <div>
+                <div style="font-size:14px; font-weight:600; color:var(--text-main);">Light Theme</div>
+                <div style="font-size:12px; color:var(--text-muted);">Default Google Workspace</div>
+              </div>
+            </div>
+
+            <div class="theme-card-option" id="theme-card-dark" data-theme="dark">
+              <span data-icon="moon" style="color:#8ab4f8;"></span>
+              <div>
+                <div style="font-size:14px; font-weight:600; color:var(--text-main);">Dark Theme</div>
+                <div style="font-size:12px; color:var(--text-muted);">Modern Google Dark</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="field-label" style="margin-top:20px;">Accent Color</div>
+          <div class="accent-swatches-row" id="settings-swatches">
+            <div class="swatch-circle" style="background:#1a73e8;" data-color="#1a73e8" title="Google Blue"></div>
+            <div class="swatch-circle" style="background:#7c3aed;" data-color="#7c3aed" title="Gemini Purple"></div>
+            <div class="swatch-circle" style="background:#d93025;" data-color="#d93025" title="Gmail Red"></div>
+            <div class="swatch-circle" style="background:#059669;" data-color="#059669" title="Google Green"></div>
+            <div class="swatch-circle" style="background:#ea580c;" data-color="#ea580c" title="Sunset Amber"></div>
+            <div class="swatch-circle" style="background:#db2777;" data-color="#db2777" title="Rose"></div>
+          </div>
+
+          <div style="display:flex; align-items:center; gap:12px; margin-top:14px;">
+            <input type="color" id="accent-color-picker" value="#1a73e8" style="cursor:pointer; width:40px; height:32px; border:none; background:transparent;">
+            <span style="font-size:13px; color:var(--text-muted);">Custom Color</span>
+            <button id="accent-reset-btn" class="btn secondary" style="margin-left:auto;">Reset to Google Blue</button>
+          </div>
+
+          <div class="field-label" style="margin-top:24px;">Workspace Logo</div>
+          <div style="display:flex; align-items:center; gap:14px; margin-top:6px;">
+            <img id="icon-preview" src="/logo.png" alt="icon" style="width:40px; height:40px; border-radius:10px; border:1px solid var(--border);">
+            <label class="btn secondary" for="icon-upload-input" style="cursor:pointer;">Choose image…</label>
+            <input type="file" id="icon-upload-input" accept="image/*" style="display:none;">
+            <button id="icon-reset-btn" class="btn secondary">Reset to default</button>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Sync Context Modal -->
   <div id="sync-modal-overlay" class="modal-overlay hidden">
     <div class="modal">
       <div class="modal-header">
-        <span><span data-icon="link" data-icon-size="sm"></span> Sync context from another chat</span>
+        <span><span data-icon="link" data-icon-size="sm"></span> Sync Context from Another Chat</span>
         <button id="sync-modal-close" class="modal-close"><span data-icon="close" data-icon-size="sm"></span></button>
       </div>
-      <div class="search-wrap">
-        <span data-icon="search" data-icon-size="sm" class="search-icon"></span>
-        <input type="text" id="sync-search-input" placeholder="Search chats…">
-      </div>
-      <div id="sync-modal-list"></div>
+      <input type="text" id="sync-search-input" class="text-input" placeholder="Search conversations to sync…">
+      <div id="sync-modal-list" class="chat-sessions-list" style="max-height:240px; overflow-y:auto;"></div>
     </div>
   </div>
 

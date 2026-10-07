@@ -1,0 +1,10 @@
+{
+  "name": "Bubbles AI",
+  "description": "Multi-agent AI assistant and developer workstation with chat, tools, terminal, code editor, and image manipulation.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

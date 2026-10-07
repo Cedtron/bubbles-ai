@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Bubbles AI
+Comment=Multi-agent AI assistant and developer workstation with Google AI brain
+Exec=google-chrome --app=http://localhost:3000 || chromium --app=http://localhost:3000 || xdg-open http://localhost:3000
+Icon=bubbles-ai
+Terminal=false
+Categories=Development;Utility;Office;
+StartupWMClass=bubbles-ai
